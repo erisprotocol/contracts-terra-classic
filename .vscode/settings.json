@@ -1,0 +1,21 @@
+{
+  "go.lintOnSave": "file",
+  "editor.formatOnSave": true,
+  "rust-analyzer.inlayHints.enable": false,
+  "gitlens.plusFeatures.enabled": false,
+  "gitlens.codeLens.authors.command": false,
+  "rust-analyzer.checkOnSave.command": "clippy",
+  "workbench.colorCustomizations": {
+    "statusBar.background": "#C60909",
+    "statusBar.debuggingBackground": "#C60909",
+    "statusBar.noFolderBackground": "#C60909",
+    "statussBar.prominentBackground": "#C60909"
+  },
+  "editor.codeActionsOnSave": {
+    "source.organizeImports": true,
+    "source.fixAll": true
+  },
+  "javascript.preferences.importModuleSpecifier": "non-relative",
+  "typescript.preferences.importModuleSpecifier": "non-relative",
+  "editor.defaultFormatter": "esbenp.prettier-vscode"
+}
