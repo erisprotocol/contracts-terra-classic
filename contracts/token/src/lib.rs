@@ -29,8 +29,12 @@ pub fn execute(
     // For `burn`, we assert that the caller is the minter
     // For `burn_from`, we simply disable it
     match msg {
-        ExecuteMsg::Burn { .. } => assert_minter(deps.storage, &info.sender)?,
-        ExecuteMsg::BurnFrom { .. } => return Err(StdError::generic_err("`burn_from` command is disabled").into()),
+        ExecuteMsg::Burn {
+            ..
+        } => assert_minter(deps.storage, &info.sender)?,
+        ExecuteMsg::BurnFrom {
+            ..
+        } => return Err(StdError::generic_err("`burn_from` command is disabled").into()),
         _ => (),
     }
 
@@ -40,7 +44,11 @@ pub fn execute(
 fn assert_minter(storage: &dyn Storage, sender: &Addr) -> Result<(), ContractError> {
     let token_info = TOKEN_INFO.load(storage)?;
 
-    if let Some(MinterData { minter, .. }) = &token_info.mint {
+    if let Some(MinterData {
+        minter,
+        ..
+    }) = &token_info.mint
+    {
         if sender != minter {
             return Err(StdError::generic_err("only minter can execute token burn").into());
         }
@@ -56,9 +64,11 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
 
 #[cfg(test)]
 mod tests {
-    use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage};
+    use cosmwasm_std::testing::{
+        mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
+    };
     use cosmwasm_std::{OwnedDeps, Uint128};
-    use cw20_base::state::{BALANCES, TokenInfo};
+    use cw20_base::state::{TokenInfo, BALANCES};
 
     use super::*;
 
@@ -69,12 +79,12 @@ mod tests {
             .save(
                 deps.as_mut().storage,
                 &TokenInfo {
-                    name: "Steak Token".to_string(),
-                    symbol: "STEAK".to_string(),
+                    name: "Stake Token".to_string(),
+                    symbol: "STAKE".to_string(),
                     decimals: 6,
                     total_supply: Uint128::new(200),
                     mint: Some(MinterData {
-                        minter: Addr::unchecked("steak_hub"),
+                        minter: Addr::unchecked("eris_hub"),
                         cap: None,
                     }),
                 },
@@ -82,19 +92,11 @@ mod tests {
             .unwrap();
 
         BALANCES
-            .save(
-                deps.as_mut().storage,
-                &Addr::unchecked("steak_hub"),
-                &Uint128::new(100)
-            )
+            .save(deps.as_mut().storage, &Addr::unchecked("eris_hub"), &Uint128::new(100))
             .unwrap();
 
         BALANCES
-            .save(
-                deps.as_mut().storage,
-                &Addr::unchecked("alice"),
-                &Uint128::new(100)
-            )
+            .save(deps.as_mut().storage, &Addr::unchecked("alice"), &Uint128::new(100))
             .unwrap();
 
         deps
@@ -115,19 +117,19 @@ mod tests {
         );
         assert_eq!(res, Err(StdError::generic_err("only minter can execute token burn").into()));
 
-        // Steak Hub can burn
+        // Stake Hub can burn
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            mock_info("steak_hub", &[]),
+            mock_info("eris_hub", &[]),
             ExecuteMsg::Burn {
                 amount: Uint128::new(100),
             },
         );
         assert!(res.is_ok());
 
-        // Steak Hub's token balance should have been reduced
-        let balance = BALANCES.load(deps.as_ref().storage, &Addr::unchecked("steak_hub")).unwrap();
+        // Stake Hub's token balance should have been reduced
+        let balance = BALANCES.load(deps.as_ref().storage, &Addr::unchecked("eris_hub")).unwrap();
         assert_eq!(balance, Uint128::zero());
 
         // Total supply should have been reduced
@@ -139,11 +141,11 @@ mod tests {
     fn disabling_burn_from() {
         let mut deps = setup_test();
 
-        // Not even Steak Hub can invoke `burn_from`
+        // Not even Stake Hub can invoke `burn_from`
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            mock_info("steak_hub", &[]),
+            mock_info("eris_hub", &[]),
             ExecuteMsg::BurnFrom {
                 owner: "alice".to_string(),
                 amount: Uint128::new(100),

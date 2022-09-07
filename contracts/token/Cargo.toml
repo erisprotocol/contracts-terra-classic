@@ -1,10 +1,10 @@
 [package]
-name = "steak-token"
+name = "stake-token"
 version = "1.0.0"
-authors = ["larry <gm@larry.engineer>"]
+authors = ["devs <devs@erisprotocol.com>"]
 edition = "2018"
 license = "GPL-3.0-or-later"
-repository = "https://github.com/st4k3h0us3/steak-contracts"
+repository = "https://github.com/erisprotocol/contracts-terra-classic"
 
 [lib]
 crate-type = ["cdylib", "rlib"]

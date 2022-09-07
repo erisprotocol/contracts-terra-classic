@@ -1,4 +1,4 @@
-# Steak 🥩
+# Terra Classic Liquid Staking 🥩
 
 Terra liquid staking derivative. Of the community, by the community, for the community.
 
@@ -15,8 +15,8 @@ A previous version ([v1.0.0-rc0](https://github.com/st4k3h0us3/steak-contracts/r
 
 ### Mainnet
 
-| Contract            | Address                                        |
-| ------------------- | ---------------------------------------------- |
+| Contract            | Address                                                                                                                            |
+| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
 | Steak Hub           | [`terra15qr8ev2c0a0jswjtfrhfaj5ucgkhjd7la2shlg`](https://terrasco.pe/mainnet/address/terra15qr8ev2c0a0jswjtfrhfaj5ucgkhjd7la2shlg) |
 | Steak Token         | [`terra1rl4zyexjphwgx6v3ytyljkkc4mrje2pyznaclv`](https://terrasco.pe/mainnet/address/terra1rl4zyexjphwgx6v3ytyljkkc4mrje2pyznaclv) |
 | STEAK-LUNA Pair     | [`terra14q0cgunptuym048a4y2awt8a7fl9acudmfzk5e`](https://terrasco.pe/mainnet/address/terra14q0cgunptuym048a4y2awt8a7fl9acudmfzk5e) |
@@ -24,8 +24,8 @@ A previous version ([v1.0.0-rc0](https://github.com/st4k3h0us3/steak-contracts/r
 
 ### Testnet
 
-| Contract            | Address                                        |
-| ------------------- | ---------------------------------------------- |
+| Contract            | Address                                                                                                                            |
+| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
 | Steak Hub           | [`terra1xshrfs3lp7nwkdfh3067vfsf3kmweygfsc3hzy`](https://terrasco.pe/testnet/address/terra1xshrfs3lp7nwkdfh3067vfsf3kmweygfsc3hzy) |
 | Steak Token         | [`terra1awhvtkm553rszxtvnuda4fe2r6rjjj7hjwzv0w`](https://terrasco.pe/testnet/address/terra1awhvtkm553rszxtvnuda4fe2r6rjjj7hjwzv0w) |
 | STEAK-LUNA Pair     | [`terra1x3tyfme7y84mv3y6ftugllrln5y7ewhf36davz`](https://terrasco.pe/testnet/address/terra1x3tyfme7y84mv3y6ftugllrln5y7ewhf36davz) |
@@ -33,4 +33,14 @@ A previous version ([v1.0.0-rc0](https://github.com/st4k3h0us3/steak-contracts/r
 
 ## License
 
+This repository is a fork of the Terra Classic Steak Liquid Staking: https://github.com/st4k3h0us3/steak-contracts
+
 Contents of this repository are open source under [GNU General Public License v3](./LICENSE) or later.
+
+## Changes
+
+- Renaming
+- added a reward fee for running the protocol
+- added a more detailed unbonding query
+- Fixed an issue in reconciliation when the expected Luna was correct the unbinding queue items were not marked reconciled
+- move scripts to another repository, so that the repo of the smart contracts will not be touched as much <https://github.com/erisprotocol/liquid-staking-scripts>

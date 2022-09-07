@@ -22,6 +22,11 @@ pub struct InstantiateMsg {
     pub unbond_period: u64,
     /// Initial set of validators who will receive the delegations
     pub validators: Vec<String>,
+
+    /// Contract address where fees are sent
+    pub protocol_fee_contract: String,
+    /// Fees that are being applied during reinvest of staking rewards
+    pub protocol_reward_fee: Decimal, // "1 is 100%, 0.05 is 5%"
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -33,6 +38,8 @@ pub enum ExecuteMsg {
     Bond {
         receiver: Option<String>,
     },
+    /// Donates specified amount of Luna to pool
+    Donate {},
     /// Withdraw Luna that have finished unbonding in previous batches
     WithdrawUnbonded {
         receiver: Option<String>,
@@ -42,7 +49,7 @@ pub enum ExecuteMsg {
         validator: String,
     },
     /// Remove a validator from the whitelist; callable by the owner
-    RemoveValidator{
+    RemoveValidator {
         validator: String,
     },
     /// Transfer ownership to another account; will not take effect unless the new owner accepts
@@ -61,6 +68,14 @@ pub enum ExecuteMsg {
     SubmitBatch {},
     /// Callbacks; can only be invoked by the contract itself
     Callback(CallbackMsg),
+
+    /// Updates the fee config,
+    UpdateConfig {
+        /// Contract address where fees are sent
+        protocol_fee_contract: Option<String>,
+        /// Fees that are being applied during reinvest of staking rewards
+        protocol_reward_fee: Option<Decimal>, // "1 is 100%, 0.05 is 5%"
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -122,6 +137,12 @@ pub enum QueryMsg {
         start_after: Option<u64>,
         limit: Option<u32>,
     },
+    /// Enumreate all outstanding unbonding requests from given a user. Response: `Vec<UnbondRequestsByUserResponseItemDetails>`
+    UnbondRequestsByUserDetails {
+        user: String,
+        start_after: Option<u64>,
+        limit: Option<u32>,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -130,36 +151,52 @@ pub struct ConfigResponse {
     pub owner: String,
     /// Pending ownership transfer, awaiting acceptance by the new owner
     pub new_owner: Option<String>,
-    /// Address of the Steak token
-    pub steak_token: String,
+    /// Address of the Stake token
+    pub stake_token: String,
     /// How often the unbonding queue is to be executed, in seconds
     pub epoch_period: u64,
     /// The staking module's unbonding time, in seconds
     pub unbond_period: u64,
     /// Initial set of validators who will receive the delegations
     pub validators: Vec<String>,
+    /// Information about applied fees
+    pub fee_config: FeeConfig,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct StateResponse {
-    /// Total supply to the Steak token
-    pub total_usteak: Uint128,
+    /// Total supply to the Stake token
+    pub total_ustake: Uint128,
     /// Total amount of uluna staked
     pub total_uluna: Uint128,
-    /// The exchange rate between usteak and uluna, in terms of uluna per usteak
+    /// The exchange rate between ustake and uluna, in terms of uluna per ustake
     pub exchange_rate: Decimal,
     /// Staking rewards currently held by the contract that are ready to be reinvested
     pub unlocked_coins: Vec<Coin>,
+    // Amount of uluna currently unbonding
+    pub unbonding: Uint128,
+    // Amount of uluna currently available as balance of the contract
+    pub available: Uint128,
+    // Total amount of uluna within the contract (bonded + unbonding + available)
+    pub tvl_uluna: Uint128,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct PendingBatch {
     /// ID of this batch
     pub id: u64,
-    /// Total amount of `usteak` to be burned in this batch
-    pub usteak_to_burn: Uint128,
+    /// Total amount of `ustake` to be burned in this batch
+    pub ustake_to_burn: Uint128,
     /// Estimated time when this batch will be submitted for unbonding
     pub est_unbond_start_time: u64,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct FeeConfig {
+    /// Contract address where fees are sent
+    pub protocol_fee_contract: Addr,
+    /// Fees that are being applied during reinvest of staking rewards
+    pub protocol_reward_fee: Decimal, // "1 is 100%, 0.05 is 5%"
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -168,7 +205,7 @@ pub struct Batch {
     pub id: u64,
     /// Whether this batch has already been reconciled
     pub reconciled: bool,
-    /// Total amount of shares remaining this batch. Each `usteak` burned = 1 share
+    /// Total amount of shares remaining this batch. Each `ustake` burned = 1 share
     pub total_shares: Uint128,
     /// Amount of `uluna` in this batch that have not been claimed
     pub uluna_unclaimed: Uint128,
@@ -218,6 +255,23 @@ impl From<UnbondRequest> for UnbondRequestsByUserResponseItem {
             shares: s.shares,
         }
     }
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct UnbondRequestsByUserResponseItemDetails {
+    /// ID of the batch
+    pub id: u64,
+    /// The user's share in the batch
+    pub shares: Uint128,
+
+    // state of pending, unbonding or completed
+    pub state: String,
+
+    // The details of the unbonding batch
+    pub batch: Option<Batch>,
+
+    // Is set if the unbonding request is still pending
+    pub pending: Option<PendingBatch>,
 }
 
 pub type MigrateMsg = Empty;

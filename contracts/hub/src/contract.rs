@@ -5,7 +5,7 @@ use cosmwasm_std::{
 use cw20::Cw20ReceiveMsg;
 use terra_cosmwasm::TerraMsgWrapper;
 
-use steak::hub::{CallbackMsg, ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg, ReceiveMsg};
+use eris::hub::{CallbackMsg, ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg, ReceiveMsg};
 
 use crate::helpers::{parse_received_fund, unwrap_reply};
 use crate::state::State;
@@ -38,7 +38,11 @@ pub fn execute(
             env,
             receiver.map(|s| api.addr_validate(&s)).transpose()?.unwrap_or(info.sender),
             parse_received_fund(&info.funds, "uluna")?,
+            false,
         ),
+        ExecuteMsg::Donate {} => {
+            execute::bond(deps, env, info.sender, parse_received_fund(&info.funds, "uluna")?, true)
+        },
         ExecuteMsg::WithdrawUnbonded {
             receiver,
         } => execute::withdraw_unbonded(
@@ -62,6 +66,10 @@ pub fn execute(
         ExecuteMsg::Reconcile {} => execute::reconcile(deps, env),
         ExecuteMsg::SubmitBatch {} => execute::submit_batch(deps, env),
         ExecuteMsg::Callback(callback_msg) => callback(deps, env, info, callback_msg),
+        ExecuteMsg::UpdateConfig {
+            protocol_fee_contract,
+            protocol_reward_fee,
+        } => execute::update_config(deps, info.sender, protocol_fee_contract, protocol_reward_fee),
     }
 }
 
@@ -78,11 +86,12 @@ fn receive(
         } => {
             let state = State::default();
 
-            let steak_token = state.steak_token.load(deps.storage)?;
-            if info.sender != steak_token {
-                return Err(StdError::generic_err(
-                    format!("expecting Steak token, received {}", info.sender)
-                ));
+            let stake_token = state.stake_token.load(deps.storage)?;
+            if info.sender != stake_token {
+                return Err(StdError::generic_err(format!(
+                    "expecting Stake token, received {}",
+                    info.sender
+                )));
             }
 
             execute::queue_unbond(
@@ -114,7 +123,7 @@ fn callback(
 #[entry_point]
 pub fn reply(deps: DepsMut, env: Env, reply: Reply) -> StdResult<Response> {
     match reply.id {
-        1 => execute::register_steak_token(deps, unwrap_reply(reply)?),
+        1 => execute::register_stake_token(deps, unwrap_reply(reply)?),
         2 => execute::register_received_coins(
             deps,
             env,
@@ -156,10 +165,26 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             start_after,
             limit,
         } => to_binary(&queries::unbond_requests_by_user(deps, user, start_after, limit)?),
+
+        QueryMsg::UnbondRequestsByUserDetails {
+            user,
+            start_after,
+            limit,
+        } => to_binary(&queries::unbond_requests_by_user_details(
+            deps,
+            user,
+            start_after,
+            limit,
+            env,
+        )?),
     }
 }
 
 #[entry_point]
-pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response<TerraMsgWrapper>> {
+pub fn migrate(
+    _deps: DepsMut,
+    _env: Env,
+    _msg: MigrateMsg,
+) -> StdResult<Response<TerraMsgWrapper>> {
     Ok(Response::new())
 }

@@ -1,6 +1,6 @@
-# Steak: Common Types
+# Stake: Common Types
 
-This crate contains definitions of common types used in Steak.
+This crate contains definitions of common types used in Stake.
 
 ## License
 

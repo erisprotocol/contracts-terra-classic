@@ -254,6 +254,31 @@ dependencies = [
 ]
 
 [[package]]
+name = "eris"
+version = "1.0.0"
+dependencies = [
+ "cosmwasm-std",
+ "cw20",
+ "schemars",
+ "serde",
+ "terra-cosmwasm",
+]
+
+[[package]]
+name = "eris-staking-hub-classic"
+version = "1.0.0"
+dependencies = [
+ "cosmwasm-std",
+ "cw-storage-plus",
+ "cw2",
+ "cw20",
+ "cw20-base",
+ "eris",
+ "serde",
+ "terra-cosmwasm",
+]
+
+[[package]]
 name = "ff"
 version = "0.10.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -518,43 +543,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "stake-token"
+version = "1.0.0"
+dependencies = [
+ "cosmwasm-std",
+ "cw20",
+ "cw20-base",
+]
+
+[[package]]
 name = "static_assertions"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
-
-[[package]]
-name = "steak"
-version = "1.0.0"
-dependencies = [
- "cosmwasm-std",
- "cw20",
- "schemars",
- "serde",
- "terra-cosmwasm",
-]
-
-[[package]]
-name = "steak-hub"
-version = "1.0.0"
-dependencies = [
- "cosmwasm-std",
- "cw-storage-plus",
- "cw20",
- "cw20-base",
- "serde",
- "steak",
- "terra-cosmwasm",
-]
-
-[[package]]
-name = "steak-token"
-version = "1.0.0"
-dependencies = [
- "cosmwasm-std",
- "cw20",
- "cw20-base",
-]
 
 [[package]]
 name = "subtle"

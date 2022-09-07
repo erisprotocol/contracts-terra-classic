@@ -1,7 +1,12 @@
-import yargs from "yargs/yargs";
 import { MsgExecuteContract } from "@terra-money/terra.js";
+import yargs from "yargs/yargs";
+import {
+  createLCDClient,
+  createWallet,
+  encodeBase64,
+  sendTxWithConfirm,
+} from "./helpers";
 import * as keystore from "./keystore";
-import { createLCDClient, createWallet, encodeBase64, sendTxWithConfirm } from "./helpers";
 
 const argv = yargs(process.argv)
   .options({
@@ -33,12 +38,15 @@ const argv = yargs(process.argv)
   const terra = createLCDClient(argv["network"]);
   const worker = await createWallet(terra, argv["key"], argv["key-dir"]);
 
-  const config: { steak_token: string } = await terra.wasm.contractQuery(argv["hub-address"], {
-    config: {},
-  });
+  const config: { stake_token: string } = await terra.wasm.contractQuery(
+    argv["hub-address"],
+    {
+      config: {},
+    }
+  );
 
   const { txhash } = await sendTxWithConfirm(worker, [
-    new MsgExecuteContract(worker.key.accAddress, config["steak_token"], {
+    new MsgExecuteContract(worker.key.accAddress, config["stake_token"], {
       send: {
         contract: argv["hub-address"],
         amount: argv["amount"],

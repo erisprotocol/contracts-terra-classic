@@ -35,7 +35,7 @@ impl TerraQuerier {
         {
             let exchange_rates: Vec<ExchangeRateItem> = quote_denoms
                 .iter()
-                .map(|quote_denom| {
+                .filter_map(|quote_denom| {
                     self.exchange_rates.get(&(base_denom.clone(), quote_denom.clone())).map(
                         |rate| ExchangeRateItem {
                             quote_denom: quote_denom.clone(),
@@ -43,13 +43,11 @@ impl TerraQuerier {
                         },
                     )
                 })
-                .filter(|item| item.is_some())
-                .map(|item| item.unwrap())
                 .collect();
 
             if exchange_rates.is_empty() {
                 return SystemResult::Err(SystemError::InvalidRequest {
-                    error: format!("[mock] quote_denoms are all unknown"),
+                    error: "[mock] quote_denoms are all unknown".to_string(),
                     request: Default::default(),
                 });
             }

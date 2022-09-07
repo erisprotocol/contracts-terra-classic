@@ -1,10 +1,10 @@
 [package]
-name = "steak-hub"
+name = "eris-staking-hub-classic"
 version = "1.0.0"
-authors = ["larry <gm@larry.engineer>"]
+authors = ["devs <devs@erisprotocol.com>"]
 edition = "2018"
 license = "GPL-3.0-or-later"
-repository = "https://github.com/st4k3h0us3/steak-contracts"
+repository = "https://github.com/erisprotocol/contracts-terra-classic"
 
 [lib]
 crate-type = ["cdylib", "rlib"]
@@ -14,10 +14,11 @@ backtraces = ["cosmwasm-std/backtraces"]
 
 [dependencies]
 cosmwasm-std = { version = "0.16", features = ["staking"] }
+cw2 = "0.9"
 cw20 = "0.9"
 cw20-base = { version = "0.9", features = ["library"] }
 cw-storage-plus = "0.9"
-steak = { path = "../../packages/steak" }
+eris = { path = "../../packages/eris" }
 terra-cosmwasm = "2.2"
 
 [dev-dependencies]

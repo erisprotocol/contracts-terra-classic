@@ -1,12 +1,11 @@
 [package]
-name = "steak"
+name = "eris"
 version = "1.0.0"
-authors = ["larry <gm@larry.engineer>"]
+authors = ["devs <devs@erisprotocol.com>"]
 edition = "2018"
-description = "Liquid staking protocol for the cosmos"
+description = "Liquid staking protocol for terra classic"
 license = "GPL-3.0-or-later"
-homepage = "https://steak.club"
-repository = "https://github.com/st4k3h0us3/steak-contracts"
+repository = "https://github.com/erisprotocol/contracts-terra-classic"
 
 [dependencies]
 cosmwasm-std = "0.16"

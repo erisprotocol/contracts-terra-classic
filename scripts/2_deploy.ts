@@ -1,15 +1,15 @@
+import { Wallet } from "@terra-money/terra.js";
 import * as fs from "fs";
 import * as path from "path";
 import yargs from "yargs/yargs";
-import * as keystore from "./keystore";
 import {
   createLCDClient,
   createWallet,
-  waitForConfirm,
-  storeCodeWithConfirm,
   instantiateWithConfirm,
+  storeCodeWithConfirm,
+  waitForConfirm,
 } from "./helpers";
-import { Wallet } from "@terra-money/terra.js";
+import * as keystore from "./keystore";
 
 const argv = yargs(process.argv)
   .options({
@@ -45,12 +45,12 @@ const argv = yargs(process.argv)
     "hub-binary": {
       type: "string",
       demandOption: false,
-      default: "../artifacts/steak_hub.wasm",
+      default: "../artifacts/eris_staking_hub_classic.wasm",
     },
     "token-binary": {
       type: "string",
       demandOption: false,
-      default: "../artifacts/steak_token.wasm",
+      default: "../artifacts/eris_stake_token_classic.wasm",
     },
   })
   .parseSync();
@@ -66,8 +66,12 @@ async function uploadCode(deployer: Wallet, path: string) {
   const terra = createLCDClient(argv["network"]);
   const deployer = await createWallet(terra, argv["key"], argv["key-dir"]);
 
-  const hubCodeId = argv["hub-code-id"] ?? await uploadCode(deployer, path.resolve(argv["hub-binary"]));
-  const tokenCodeId = argv["token-code-id"] ?? await uploadCode(deployer, path.resolve(argv["token-binary"]));
+  const hubCodeId =
+    argv["hub-code-id"] ??
+    (await uploadCode(deployer, path.resolve(argv["hub-binary"])));
+  const tokenCodeId =
+    argv["token-code-id"] ??
+    (await uploadCode(deployer, path.resolve(argv["token-binary"])));
 
   const msg = JSON.parse(fs.readFileSync(path.resolve(argv["msg"]), "utf8"));
   msg["cw20_code_id"] = tokenCodeId;

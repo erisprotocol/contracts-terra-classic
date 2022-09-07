@@ -5,7 +5,7 @@ use cosmwasm_std::{
 };
 use serde::de::DeserializeOwned;
 
-use steak::hub::QueryMsg;
+use eris::hub::QueryMsg;
 
 use crate::contract::query;
 
@@ -41,4 +41,12 @@ pub(super) fn mock_env_at_timestamp(timestamp: u64) -> Env {
 
 pub(super) fn query_helper<T: DeserializeOwned>(deps: Deps, msg: QueryMsg) -> T {
     from_binary(&query(deps, mock_env(), msg).unwrap()).unwrap()
+}
+
+pub(super) fn query_helper_env<T: DeserializeOwned>(
+    deps: Deps,
+    msg: QueryMsg,
+    timestamp: u64,
+) -> T {
+    from_binary(&query(deps, mock_env_at_timestamp(timestamp), msg).unwrap()).unwrap()
 }

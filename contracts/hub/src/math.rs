@@ -2,7 +2,7 @@ use std::{cmp, cmp::Ordering};
 
 use cosmwasm_std::Uint128;
 
-use steak::hub::Batch;
+use eris::hub::Batch;
 
 use crate::types::{Delegation, Redelegation, Undelegation};
 
@@ -10,11 +10,11 @@ use crate::types::{Delegation, Redelegation, Undelegation};
 // Minting/burning logics
 //--------------------------------------------------------------------------------------------------
 
-/// Compute the amount of Steak token to mint for a specific Luna stake amount. If current total
-/// staked amount is zero, we use 1 usteak = 1 uluna; otherwise, we calculate base on the current
+/// Compute the amount of Stake token to mint for a specific Luna stake amount. If current total
+/// staked amount is zero, we use 1 ustake = 1 uluna; otherwise, we calculate base on the current
 /// uluna per ustake ratio.
 pub(crate) fn compute_mint_amount(
-    usteak_supply: Uint128,
+    ustake_supply: Uint128,
     uluna_to_bond: Uint128,
     current_delegations: &[Delegation],
 ) -> Uint128 {
@@ -22,21 +22,21 @@ pub(crate) fn compute_mint_amount(
     if uluna_bonded == 0 {
         uluna_to_bond
     } else {
-        usteak_supply.multiply_ratio(uluna_to_bond, uluna_bonded)
+        ustake_supply.multiply_ratio(uluna_to_bond, uluna_bonded)
     }
 }
 
-/// Compute the amount of `uluna` to unbond for a specific `usteak` burn amount
+/// Compute the amount of `uluna` to unbond for a specific `ustake` burn amount
 ///
-/// There is no way `usteak` total supply is zero when the user is senting a non-zero amount of `usteak`
+/// There is no way `ustake` total supply is zero when the user is senting a non-zero amount of `ustake`
 /// to burn, so we don't need to handle division-by-zero here
 pub(crate) fn compute_unbond_amount(
-    usteak_supply: Uint128,
-    usteak_to_burn: Uint128,
+    ustake_supply: Uint128,
+    ustake_to_burn: Uint128,
     current_delegations: &[Delegation],
 ) -> Uint128 {
     let uluna_bonded: u128 = current_delegations.iter().map(|d| d.amount).sum();
-    Uint128::new(uluna_bonded).multiply_ratio(usteak_to_burn, usteak_supply)
+    Uint128::new(uluna_bonded).multiply_ratio(ustake_to_burn, ustake_supply)
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -63,7 +63,11 @@ pub(crate) fn compute_undelegations(
     let mut new_undelegations: Vec<Undelegation> = vec![];
     let mut uluna_available = uluna_to_unbond.u128();
     for (i, d) in current_delegations.iter().enumerate() {
-        let remainder_for_validator: u128 = if (i + 1) as u128 <= remainder { 1 } else { 0 };
+        let remainder_for_validator: u128 = if (i + 1) as u128 <= remainder {
+            1
+        } else {
+            0
+        };
         let uluna_for_validator = uluna_per_validator + remainder_for_validator;
 
         let mut uluna_to_undelegate = if d.amount < uluna_for_validator {
@@ -76,9 +80,7 @@ pub(crate) fn compute_undelegations(
         uluna_available -= uluna_to_undelegate;
 
         if uluna_to_undelegate > 0 {
-            new_undelegations.push(
-                Undelegation::new(&d.validator, uluna_to_undelegate),
-            );
+            new_undelegations.push(Undelegation::new(&d.validator, uluna_to_undelegate));
         }
 
         if uluna_available == 0 {
@@ -109,7 +111,11 @@ pub(crate) fn compute_redelegations_for_removal(
     let mut new_redelegations: Vec<Redelegation> = vec![];
     let mut uluna_available = delegation_to_remove.amount;
     for (i, d) in current_delegations.iter().enumerate() {
-        let remainder_for_validator: u128 = if (i + 1) as u128 <= remainder { 1 } else { 0 };
+        let remainder_for_validator: u128 = if (i + 1) as u128 <= remainder {
+            1
+        } else {
+            0
+        };
         let uluna_for_validator = uluna_per_validator + remainder_for_validator;
 
         let mut uluna_to_redelegate = if d.amount > uluna_for_validator {
@@ -122,9 +128,11 @@ pub(crate) fn compute_redelegations_for_removal(
         uluna_available -= uluna_to_redelegate;
 
         if uluna_to_redelegate > 0 {
-            new_redelegations.push(
-                Redelegation::new(&delegation_to_remove.validator, &d.validator, uluna_to_redelegate),
-            );
+            new_redelegations.push(Redelegation::new(
+                &delegation_to_remove.validator,
+                &d.validator,
+                uluna_to_redelegate,
+            ));
         }
 
         if uluna_available == 0 {
@@ -155,7 +163,11 @@ pub(crate) fn compute_redelegations_for_rebalancing(
     let mut src_delegations: Vec<Delegation> = vec![];
     let mut dst_delegations: Vec<Delegation> = vec![];
     for (i, d) in current_delegations.iter().enumerate() {
-        let remainder_for_validator: u128 = if (i + 1) as u128 <= remainder { 1 } else { 0 };
+        let remainder_for_validator: u128 = if (i + 1) as u128 <= remainder {
+            1
+        } else {
+            0
+        };
         let uluna_for_validator = uluna_per_validator + remainder_for_validator;
 
         match d.amount.cmp(&uluna_for_validator) {
@@ -187,9 +199,11 @@ pub(crate) fn compute_redelegations_for_rebalancing(
             dst_delegations[0].amount -= uluna_to_redelegate;
         }
 
-        new_redelegations.push(
-            Redelegation::new(&src_delegation.validator, &dst_delegation.validator, uluna_to_redelegate),
-        );
+        new_redelegations.push(Redelegation::new(
+            &src_delegation.validator,
+            &dst_delegation.validator,
+            uluna_to_redelegate,
+        ));
     }
 
     new_redelegations
@@ -211,10 +225,21 @@ pub(crate) fn reconcile_batches(batches: &mut [Batch], uluna_to_deduct: Uint128)
     let remainder = uluna_to_deduct.u128() % batch_count;
 
     for (i, batch) in batches.iter_mut().enumerate() {
-        let remainder_for_batch: u128 = if (i + 1) as u128 <= remainder { 1 } else { 0 };
+        let remainder_for_batch: u128 = if (i + 1) as u128 <= remainder {
+            1
+        } else {
+            0
+        };
         let uluna_for_batch = uluna_per_batch + remainder_for_batch;
 
         batch.uluna_unclaimed -= Uint128::new(uluna_for_batch);
+        batch.reconciled = true;
+    }
+}
+
+/// If all funds are available we still need to mark batches as reconciled
+pub(crate) fn mark_reconciled_batches(batches: &mut [Batch]) {
+    for (_, batch) in batches.iter_mut().enumerate() {
         batch.reconciled = true;
     }
 }

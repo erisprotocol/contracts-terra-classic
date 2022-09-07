@@ -1,14 +1,14 @@
+import { MsgMigrateContract } from "@terra-money/terra.js";
 import * as path from "path";
 import yargs from "yargs/yargs";
-import { MsgMigrateContract } from "@terra-money/terra.js";
-import * as keystore from "./keystore";
 import {
   createLCDClient,
   createWallet,
-  waitForConfirm,
   sendTxWithConfirm,
   storeCodeWithConfirm,
+  waitForConfirm,
 } from "./helpers";
+import * as keystore from "./keystore";
 
 const argv = yargs(process.argv)
   .options({
@@ -41,7 +41,7 @@ const argv = yargs(process.argv)
     binary: {
       type: "string",
       demandOption: false,
-      default: "../artifacts/steak_hub.wasm",
+      default: "../artifacts/eris_staking_hub_classic.wasm",
     },
   })
   .parseSync();

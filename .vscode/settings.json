@@ -6,10 +6,10 @@
   "gitlens.codeLens.authors.command": false,
   "rust-analyzer.checkOnSave.command": "clippy",
   "workbench.colorCustomizations": {
-    "statusBar.background": "#C60909",
-    "statusBar.debuggingBackground": "#C60909",
-    "statusBar.noFolderBackground": "#C60909",
-    "statussBar.prominentBackground": "#C60909"
+    "statusBar.background": "#E49427",
+    "statusBar.debuggingBackground": "#E49427",
+    "statusBar.noFolderBackground": "#E49427",
+    "statussBar.prominentBackground": "#E49427"
   },
   "editor.codeActionsOnSave": {
     "source.organizeImports": true,
