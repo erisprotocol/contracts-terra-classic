@@ -1,7 +1,7 @@
 [workspace]
 members = ["contracts/*", "packages/*"]
 
-[profile.release.package.eris-staking]
+[profile.release.package.eris-staking-hub-classic]
 opt-level = 3
 debug = false
 debug-assertions = false

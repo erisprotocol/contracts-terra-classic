@@ -395,7 +395,9 @@ pub fn queue_unbond(
     )?;
 
     let mut msgs: Vec<CosmosMsg<TerraMsgWrapper>> = vec![];
+    let mut start_time = pending_batch.est_unbond_start_time.to_string();
     if env.block.time.seconds() >= pending_batch.est_unbond_start_time {
+        start_time = "immediate".to_string();
         msgs.push(CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: env.contract.address.into(),
             msg: to_binary(&ExecuteMsg::SubmitBatch {})?,
@@ -405,6 +407,7 @@ pub fn queue_unbond(
 
     let event = Event::new("erishub/unbond_queued")
         .add_attribute("time", env.block.time.seconds().to_string())
+        .add_attribute("est_unbond_start_time", start_time)
         .add_attribute("height", env.block.height.to_string())
         .add_attribute("id", pending_batch.id.to_string())
         .add_attribute("receiver", receiver)

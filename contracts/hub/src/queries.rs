@@ -1,5 +1,5 @@
-use cosmwasm_std::{Addr, Decimal, Deps, Env, Order, StdResult, Uint128};
-use cw_storage_plus::{Bound, PrimaryKey, U64Key};
+use cosmwasm_std::{Decimal, Deps, Env, Order, StdResult, Uint128};
+use cw_storage_plus::{Bound, U64Key};
 
 use eris::hub::{
     Batch, ConfigResponse, PendingBatch, StateResponse, UnbondRequestsByBatchResponseItem,
