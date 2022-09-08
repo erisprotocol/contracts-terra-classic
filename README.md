@@ -8,7 +8,7 @@ A previous version ([v1.0.0-rc0](https://github.com/st4k3h0us3/steak-contracts/r
 
 | Contract                                        | Description                                              |
 | ----------------------------------------------- | -------------------------------------------------------- |
-| [`erist-staking-hub-classic`](./contracts/hub)  | Manages minting/burning of ampLUNA token and bonded Luna |
+| [`eris-staking-hub-classic`](./contracts/hub)   | Manages minting/burning of ampLUNC token and bonded Luna |
 | [`eris-stake-token-classic`](./contracts/token) | Modified CW20 token contract                             |
 
 ## Deployment
