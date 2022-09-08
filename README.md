@@ -1,4 +1,4 @@
-# Terra Classic Liquid Staking 🥩
+# Eris Amplified Staking Classic
 
 Terra liquid staking derivative. Of the community, by the community, for the community.
 
@@ -6,36 +6,24 @@ A previous version ([v1.0.0-rc0](https://github.com/st4k3h0us3/steak-contracts/r
 
 ## Contracts
 
-| Contract                           | Description                                            |
-| ---------------------------------- | ------------------------------------------------------ |
-| [`steak-hub`](./contracts/hub)     | Manages minting/burning of Steak token and bonded Luna |
-| [`steak-token`](./contracts/token) | Modified CW20 token contract                           |
+| Contract                                        | Description                                              |
+| ----------------------------------------------- | -------------------------------------------------------- |
+| [`erist-staking-hub-classic`](./contracts/hub)  | Manages minting/burning of ampLUNA token and bonded Luna |
+| [`eris-stake-token-classic`](./contracts/token) | Modified CW20 token contract                             |
 
 ## Deployment
 
 ### Mainnet
 
-| Contract            | Address                                                                                                                            |
-| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| Steak Hub           | [`terra15qr8ev2c0a0jswjtfrhfaj5ucgkhjd7la2shlg`](https://terrasco.pe/mainnet/address/terra15qr8ev2c0a0jswjtfrhfaj5ucgkhjd7la2shlg) |
-| Steak Token         | [`terra1rl4zyexjphwgx6v3ytyljkkc4mrje2pyznaclv`](https://terrasco.pe/mainnet/address/terra1rl4zyexjphwgx6v3ytyljkkc4mrje2pyznaclv) |
-| STEAK-LUNA Pair     | [`terra14q0cgunptuym048a4y2awt8a7fl9acudmfzk5e`](https://terrasco.pe/mainnet/address/terra14q0cgunptuym048a4y2awt8a7fl9acudmfzk5e) |
-| STEAK-LUNA LP Token | [`terra1pwc77c6a588cualln2uypyyvg5r76tfaazgk62`](https://terrasco.pe/mainnet/address/terra1pwc77c6a588cualln2uypyyvg5r76tfaazgk62) |
+For contract links see <https://app.erisprotocol.com>
 
-### Testnet
+## Building
 
-| Contract            | Address                                                                                                                            |
-| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| Steak Hub           | [`terra1xshrfs3lp7nwkdfh3067vfsf3kmweygfsc3hzy`](https://terrasco.pe/testnet/address/terra1xshrfs3lp7nwkdfh3067vfsf3kmweygfsc3hzy) |
-| Steak Token         | [`terra1awhvtkm553rszxtvnuda4fe2r6rjjj7hjwzv0w`](https://terrasco.pe/testnet/address/terra1awhvtkm553rszxtvnuda4fe2r6rjjj7hjwzv0w) |
-| STEAK-LUNA Pair     | [`terra1x3tyfme7y84mv3y6ftugllrln5y7ewhf36davz`](https://terrasco.pe/testnet/address/terra1x3tyfme7y84mv3y6ftugllrln5y7ewhf36davz) |
-| STEAK-LUNA LP Token | [`terra1exla7lyc8g85szpntmcs5f2rvvg5gwwn7jekje`](https://terrasco.pe/testnet/address/terra1exla7lyc8g85szpntmcs5f2rvvg5gwwn7jekje) |
+For interacting with the smart contract clone <https://github.com/erisprotocol/liquid-staking-scripts> into the same parent folder.
 
-## License
+## Fork
 
-This repository is a fork of the Terra Classic Steak Liquid Staking: https://github.com/st4k3h0us3/steak-contracts
-
-Contents of this repository are open source under [GNU General Public License v3](./LICENSE) or later.
+The initial version of the source code has been forked from the awesome steak liquid staking solution <https://github.com/st4k3h0us3/steak>
 
 ## Changes
 
@@ -44,3 +32,7 @@ Contents of this repository are open source under [GNU General Public License v3
 - added a more detailed unbonding query
 - Fixed an issue in reconciliation when the expected Luna was correct the unbinding queue items were not marked reconciled
 - move scripts to another repository, so that the repo of the smart contracts will not be touched as much <https://github.com/erisprotocol/liquid-staking-scripts>
+
+## License
+
+Contents of this repository are open source under [GNU General Public License v3](./LICENSE) or later.

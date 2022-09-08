@@ -1,6 +1,6 @@
 [package]
-name = "stake-token"
-version = "1.0.0"
+name = "eris-stake-token-classic"
+version = "1.1.0"
 authors = ["devs <devs@erisprotocol.com>"]
 edition = "2018"
 license = "GPL-3.0-or-later"
