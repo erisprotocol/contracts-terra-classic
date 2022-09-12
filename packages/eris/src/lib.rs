@@ -1,3 +1,4 @@
+pub mod asset;
 pub mod hub;
 
 mod decimal_checked_ops {

@@ -1,7 +1,7 @@
 mod coins;
 mod keys;
-mod staking;
+mod msgs;
 
 pub use coins::Coins;
 pub use keys::BooleanKey;
-pub use staking::{Delegation, Redelegation, SendFee, Undelegation};
+pub use msgs::{Delegation, Redelegation, SendFee, Undelegation};

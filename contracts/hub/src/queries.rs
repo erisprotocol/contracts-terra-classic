@@ -22,6 +22,7 @@ pub fn config(deps: Deps) -> StdResult<ConfigResponse> {
         unbond_period: state.unbond_period.load(deps.storage)?,
         validators: state.validators.load(deps.storage)?,
         fee_config: state.fee_config.load(deps.storage)?,
+        swap_config: state.swap_config.load(deps.storage)?,
     })
 }
 

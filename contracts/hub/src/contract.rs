@@ -2,11 +2,13 @@ use cosmwasm_std::{
     entry_point, from_binary, to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Reply, Response,
     StdError, StdResult,
 };
+use cw2::{get_contract_version, set_contract_version};
 use cw20::Cw20ReceiveMsg;
 use terra_cosmwasm::TerraMsgWrapper;
 
 use eris::hub::{CallbackMsg, ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg, ReceiveMsg};
 
+use crate::constants::{CONTRACT_NAME, CONTRACT_VERSION};
 use crate::helpers::{parse_received_fund, unwrap_reply};
 use crate::state::State;
 use crate::{execute, queries};
@@ -69,7 +71,14 @@ pub fn execute(
         ExecuteMsg::UpdateConfig {
             protocol_fee_contract,
             protocol_reward_fee,
-        } => execute::update_config(deps, info.sender, protocol_fee_contract, protocol_reward_fee),
+            swap_config,
+        } => execute::update_config(
+            deps,
+            info.sender,
+            protocol_fee_contract,
+            protocol_reward_fee,
+            swap_config,
+        ),
     }
 }
 
@@ -132,15 +141,16 @@ pub fn reply(deps: DepsMut, env: Env, reply: Reply) -> StdResult<Response> {
             "receiver",
             "amount",
         ),
-        3 => execute::register_received_coins(
-            deps,
-            env,
-            unwrap_reply(reply)?.events,
-            "swap",
-            "recipient",
-            "swap_coin",
-        ),
-        id => Err(StdError::generic_err(format!("invalid reply id: {}; must be 1-3", id))),
+        // used for native swap
+        // 3 => execute::register_received_coins(
+        //     deps,
+        //     env,
+        //     unwrap_reply(reply)?.events,
+        //     "swap",
+        //     "recipient",
+        //     "swap_coin",
+        // ),
+        id => Err(StdError::generic_err(format!("invalid reply id: {}; must be 1-2", id))),
     }
 }
 
@@ -181,10 +191,20 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
 }
 
 #[entry_point]
-pub fn migrate(
-    _deps: DepsMut,
-    _env: Env,
-    _msg: MigrateMsg,
-) -> StdResult<Response<TerraMsgWrapper>> {
+pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response<TerraMsgWrapper>> {
+    let contract_version = get_contract_version(deps.storage)?;
+
+    match contract_version.contract.as_ref() {
+        "eris-staking-hub" => match contract_version.version.as_ref() {
+            "1.1.0" => {
+                let state = State::default();
+                state.swap_config.save(deps.storage, &vec![])?;
+            },
+            _ => return Err(StdError::generic_err("Error during migration")),
+        },
+        _ => return Err(StdError::generic_err("Error during migration")),
+    }
+
+    set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
     Ok(Response::new())
 }

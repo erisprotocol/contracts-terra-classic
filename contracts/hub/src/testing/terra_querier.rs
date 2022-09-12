@@ -1,7 +1,9 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, str::FromStr};
 
-use cosmwasm_std::{to_binary, Decimal, QuerierResult, SystemError, SystemResult};
-use terra_cosmwasm::{ExchangeRateItem, ExchangeRatesResponse, TerraQuery};
+use cosmwasm_std::{to_binary, Decimal, QuerierResult, SystemError, SystemResult, Uint128};
+use terra_cosmwasm::{
+    ExchangeRateItem, ExchangeRatesResponse, TaxCapResponse, TaxRateResponse, TerraQuery,
+};
 
 use super::helpers::err_unsupported_query;
 
@@ -55,6 +57,25 @@ impl TerraQuerier {
             return Ok(to_binary(&ExchangeRatesResponse {
                 base_denom: base_denom.into(),
                 exchange_rates,
+            })
+            .into())
+            .into();
+        }
+
+        if let TerraQuery::TaxCap {
+            denom: _,
+        } = query
+        {
+            return Ok(to_binary(&TaxCapResponse {
+                cap: Uint128::new(100),
+            })
+            .into())
+            .into();
+        }
+
+        if let TerraQuery::TaxRate {} = query {
+            return Ok(to_binary(&TaxRateResponse {
+                rate: Decimal::from_str("0.01").unwrap(),
             })
             .into())
             .into();

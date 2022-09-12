@@ -27,6 +27,9 @@ pub struct InstantiateMsg {
     pub protocol_fee_contract: String,
     /// Fees that are being applied during reinvest of staking rewards
     pub protocol_reward_fee: Decimal, // "1 is 100%, 0.05 is 5%"
+
+    /// Defines the configuration for swapping
+    pub swap_config: Vec<SwapConfig>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -75,6 +78,9 @@ pub enum ExecuteMsg {
         protocol_fee_contract: Option<String>,
         /// Fees that are being applied during reinvest of staking rewards
         protocol_reward_fee: Option<Decimal>, // "1 is 100%, 0.05 is 5%"
+
+        /// Config about used swap routes
+        swap_config: Option<Vec<SwapConfig>>,
     },
 }
 
@@ -161,6 +167,8 @@ pub struct ConfigResponse {
     pub validators: Vec<String>,
     /// Information about applied fees
     pub fee_config: FeeConfig,
+    /// Information about applied swaps
+    pub swap_config: Vec<SwapConfig>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -197,6 +205,15 @@ pub struct FeeConfig {
     pub protocol_fee_contract: Addr,
     /// Fees that are being applied during reinvest of staking rewards
     pub protocol_reward_fee: Decimal, // "1 is 100%, 0.05 is 5%"
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct SwapConfig {
+    /// Contract address of router that is used for swapping
+    pub contract: Addr,
+
+    // denom used for swap
+    pub denom: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

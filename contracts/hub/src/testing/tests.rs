@@ -1,4 +1,5 @@
 use std::str::FromStr;
+use std::vec;
 
 use cosmwasm_std::testing::{mock_env, mock_info, MockApi, MockStorage, MOCK_CONTRACT_ADDR};
 use cosmwasm_std::{
@@ -9,10 +10,12 @@ use cw20::{Cw20ExecuteMsg, MinterResponse};
 use cw20_base::msg::InstantiateMsg as Cw20InstantiateMsg;
 use eris::DecimalCheckedOps;
 
+use eris::asset::{Asset, PairExecuteMsg};
 use eris::hub::{
     Batch, CallbackMsg, ConfigResponse, ExecuteMsg, FeeConfig, InstantiateMsg, PendingBatch,
-    QueryMsg, ReceiveMsg, StateResponse, UnbondRequest, UnbondRequestsByBatchResponseItem,
-    UnbondRequestsByUserResponseItem, UnbondRequestsByUserResponseItemDetails,
+    QueryMsg, ReceiveMsg, StateResponse, SwapConfig, UnbondRequest,
+    UnbondRequestsByBatchResponseItem, UnbondRequestsByUserResponseItem,
+    UnbondRequestsByUserResponseItemDetails,
 };
 
 use crate::contract::{execute, instantiate, reply};
@@ -49,6 +52,10 @@ fn setup_test() -> OwnedDeps<MockStorage, MockApi, CustomQuerier> {
             validators: vec!["alice".to_string(), "bob".to_string(), "charlie".to_string()],
             protocol_fee_contract: "fee".to_string(),
             protocol_reward_fee: Decimal::from_ratio(1u128, 100u128),
+            swap_config: vec![SwapConfig {
+                denom: "uusd".to_string(),
+                contract: Addr::unchecked("uusd_uluna"),
+            }],
         },
     )
     .unwrap();
@@ -125,7 +132,11 @@ fn proper_instantiation() {
             fee_config: FeeConfig {
                 protocol_fee_contract: Addr::unchecked("fee"),
                 protocol_reward_fee: Decimal::from_ratio(1u128, 100u128)
-            }
+            },
+            swap_config: vec![SwapConfig {
+                denom: "uusd".to_string(),
+                contract: Addr::unchecked("uusd_uluna"),
+            }],
         }
     );
 
@@ -374,7 +385,7 @@ fn harvesting() {
     let res = execute(deps.as_mut(), mock_env(), mock_info("worker", &[]), ExecuteMsg::Harvest {})
         .unwrap();
 
-    assert_eq!(res.messages.len(), 4);
+    assert_eq!(res.messages.len(), 5);
     assert_eq!(
         res.messages[0],
         SubMsg::reply_on_success(
@@ -404,6 +415,19 @@ fn harvesting() {
     );
     assert_eq!(
         res.messages[3],
+        SubMsg {
+            id: 0,
+            msg: CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: MOCK_CONTRACT_ADDR.to_string(),
+                msg: to_binary(&ExecuteMsg::Callback(CallbackMsg::Swap {})).unwrap(),
+                funds: vec![]
+            }),
+            gas_limit: None,
+            reply_on: ReplyOn::Never
+        }
+    );
+    assert_eq!(
+        res.messages[4],
         SubMsg {
             id: 0,
             msg: CosmosMsg::Wasm(WasmMsg::Execute {
@@ -489,6 +513,84 @@ fn registering_unlocked_coins() {
     //         ),
     //     ]
     // );
+}
+
+#[test]
+fn swapping() {
+    let mut deps = setup_test();
+    let state = State::default();
+
+    // After withdrawing staking rewards, we have some unlocked coins. Some can be swapped for Luna,
+    // some can't.
+    state
+        .unlocked_coins
+        .save(
+            deps.as_mut().storage,
+            &vec![
+                Coin::new(123, "ukrw"),
+                Coin::new(234, "uluna"),
+                Coin::new(345, "uusd"),
+                Coin::new(
+                    69420,
+                    "ibc/0471F1C4E7AFD3F07702BEF6DC365268D64570F7C1FDC98EA6098DD6DE59817B",
+                ),
+            ],
+        )
+        .unwrap();
+
+    let res = execute(
+        deps.as_mut(),
+        mock_env(),
+        mock_info(MOCK_CONTRACT_ADDR, &[]),
+        ExecuteMsg::Callback(CallbackMsg::Swap {}),
+    )
+    .unwrap();
+
+    assert_eq!(res.messages.len(), 1);
+
+    // 345 - TAX of 1 %
+    let amount = Uint128::new(345) - Uint128::new(4);
+
+    assert_eq!(
+        res.messages[0],
+        SubMsg::reply_on_success(
+            CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: "uusd_uluna".to_string(),
+                funds: vec![Coin {
+                    denom: "uusd".to_string(),
+                    amount,
+                }],
+                msg: to_binary(&PairExecuteMsg::Swap {
+                    offer_asset: Asset {
+                        amount,
+                        info: eris::asset::AssetInfo::NativeToken {
+                            denom: "uusd".to_string()
+                        }
+                    },
+                    belief_price: None,
+                    max_spread: None,
+                    to: None,
+                })
+                .unwrap(),
+            }),
+            2
+        )
+    );
+
+    // Storage should have been updated
+    // uluna from swap not added
+    let unlocked_coins = state.unlocked_coins.load(deps.as_ref().storage).unwrap();
+    assert_eq!(
+        unlocked_coins,
+        vec![
+            Coin::new(123, "ukrw"),
+            Coin::new(234, "uluna"),
+            Coin::new(
+                69420,
+                "ibc/0471F1C4E7AFD3F07702BEF6DC365268D64570F7C1FDC98EA6098DD6DE59817B"
+            ),
+        ]
+    );
 }
 
 #[test]
@@ -1430,7 +1532,7 @@ fn transferring_ownership() {
 //--------------------------------------------------------------------------------------------------
 
 #[test]
-fn update_fee() {
+fn update_config() {
     let mut deps = setup_test();
     let state = State::default();
 
@@ -1450,6 +1552,7 @@ fn update_fee() {
         ExecuteMsg::UpdateConfig {
             protocol_fee_contract: None,
             protocol_reward_fee: Some(Decimal::from_ratio(11u128, 100u128)),
+            swap_config: None,
         },
     )
     .unwrap_err();
@@ -1462,6 +1565,7 @@ fn update_fee() {
         ExecuteMsg::UpdateConfig {
             protocol_fee_contract: None,
             protocol_reward_fee: Some(Decimal::from_ratio(11u128, 100u128)),
+            swap_config: None,
         },
     )
     .unwrap_err();
@@ -1474,6 +1578,10 @@ fn update_fee() {
         ExecuteMsg::UpdateConfig {
             protocol_fee_contract: Some("fee-new".to_string()),
             protocol_reward_fee: Some(Decimal::from_ratio(10u128, 100u128)),
+            swap_config: Some(vec![SwapConfig {
+                denom: "uusd".to_string(),
+                contract: Addr::unchecked("swap"),
+            }]),
         },
     )
     .unwrap();
@@ -1485,8 +1593,17 @@ fn update_fee() {
         config,
         FeeConfig {
             protocol_fee_contract: Addr::unchecked("fee-new"),
-            protocol_reward_fee: Decimal::from_ratio(10u128, 100u128)
+            protocol_reward_fee: Decimal::from_ratio(10u128, 100u128),
         }
+    );
+
+    let config = state.swap_config.load(deps.as_ref().storage).unwrap();
+    assert_eq!(
+        config,
+        vec![SwapConfig {
+            denom: "uusd".to_string(),
+            contract: Addr::unchecked("swap"),
+        }]
     );
 }
 

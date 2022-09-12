@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::HashMap;
 use std::str::FromStr;
 
 use cosmwasm_std::{
@@ -8,11 +8,13 @@ use cosmwasm_std::{
 use cw2::set_contract_version;
 use cw20::{Cw20ExecuteMsg, MinterResponse};
 use cw20_base::msg::InstantiateMsg as Cw20InstantiateMsg;
+use eris::asset::{addr_validate_to_lower, Asset};
 use eris::DecimalCheckedOps;
-use terra_cosmwasm::{create_swap_msg, TerraMsgWrapper, TerraQuerier};
+use terra_cosmwasm::TerraMsgWrapper;
 
 use eris::hub::{
-    Batch, CallbackMsg, ExecuteMsg, FeeConfig, InstantiateMsg, PendingBatch, UnbondRequest,
+    Batch, CallbackMsg, ExecuteMsg, FeeConfig, InstantiateMsg, PendingBatch, SwapConfig,
+    UnbondRequest,
 };
 
 use crate::constants::{get_reward_fee_cap, CONTRACT_NAME, CONTRACT_VERSION};
@@ -58,6 +60,8 @@ pub fn instantiate(deps: DepsMut, env: Env, msg: InstantiateMsg) -> StdResult<Re
             est_unbond_start_time: env.block.time.seconds() + msg.epoch_period,
         },
     )?;
+
+    state.swap_config.save(deps.storage, &msg.swap_config)?;
 
     Ok(Response::new().add_submessage(SubMsg::reply_on_success(
         CosmosMsg::Wasm(WasmMsg::Instantiate {
@@ -198,14 +202,10 @@ pub fn harvest(deps: DepsMut, env: Env) -> StdResult<Response<TerraMsgWrapper>> 
         })
         .collect::<Vec<_>>();
 
-    let callback_msgs = vec![
-        // swap is still disabled for now
-        // CallbackMsg::Swap {},
-        CallbackMsg::Reinvest {},
-    ]
-    .iter()
-    .map(|callback| callback.into_cosmos_msg(&env.contract.address))
-    .collect::<StdResult<Vec<_>>>()?;
+    let callback_msgs = vec![CallbackMsg::Swap {}, CallbackMsg::Reinvest {}]
+        .iter()
+        .map(|callback| callback.into_cosmos_msg(&env.contract.address))
+        .collect::<StdResult<Vec<_>>>()?;
 
     Ok(Response::new()
         .add_submessages(withdraw_submsgs)
@@ -216,29 +216,37 @@ pub fn harvest(deps: DepsMut, env: Env) -> StdResult<Response<TerraMsgWrapper>> 
 pub fn swap(deps: DepsMut) -> StdResult<Response<TerraMsgWrapper>> {
     let state = State::default();
     let mut unlocked_coins = state.unlocked_coins.load(deps.storage)?;
+    let swap_config = state.swap_config.load(deps.storage)?;
 
-    let all_denoms = unlocked_coins
-        .iter()
-        .cloned()
-        .map(|coin| coin.denom)
-        .filter(|denom| denom != "uluna")
-        .collect::<Vec<_>>();
-
-    let known_denoms = TerraQuerier::new(&deps.querier)
-        .query_exchange_rates("uluna".to_string(), all_denoms)?
-        .exchange_rates
-        .into_iter()
-        .map(|item| item.quote_denom)
-        .collect::<HashSet<_>>();
+    let known_denoms =
+        swap_config.into_iter().map(|item| (item.denom, item.contract)).collect::<HashMap<_, _>>();
 
     let swap_submsgs = unlocked_coins
         .iter()
         .cloned()
-        .filter(|coin| known_denoms.contains(&coin.denom))
-        .map(|coin| SubMsg::reply_on_success(create_swap_msg(coin, "uluna".to_string()), 3))
+        .filter(|coin| known_denoms.contains_key(&coin.denom))
+        .map(|coin| {
+            SubMsg::reply_on_success(
+                Asset {
+                    info: eris::asset::AssetInfo::NativeToken {
+                        denom: coin.denom.clone(),
+                    },
+                    amount: coin.amount,
+                }
+                .into_swap_msg(
+                    &deps.querier,
+                    known_denoms.get(&coin.denom).unwrap().to_string(),
+                    None,
+                    None,
+                )
+                .unwrap(),
+                // 2 is used for parsing coin_received, receiver == contract_addr, amount value
+                2,
+            )
+        })
         .collect::<Vec<_>>();
 
-    unlocked_coins.retain(|coin| !known_denoms.contains(&coin.denom));
+    unlocked_coins.retain(|coin| !known_denoms.contains_key(&coin.denom));
     state.unlocked_coins.save(deps.storage, &unlocked_coins)?;
 
     Ok(Response::new().add_submessages(swap_submsgs).add_attribute("action", "erishub/swap"))
@@ -762,25 +770,40 @@ pub fn update_config(
     sender: Addr,
     protocol_fee_contract: Option<String>,
     protocol_reward_fee: Option<Decimal>,
+    swap_config: Option<Vec<SwapConfig>>,
 ) -> StdResult<Response<TerraMsgWrapper>> {
     let state = State::default();
 
     state.assert_owner(deps.storage, &sender)?;
 
-    let mut fee_config = state.fee_config.load(deps.storage)?;
+    if protocol_fee_contract.is_some() || protocol_reward_fee.is_some() {
+        let mut fee_config = state.fee_config.load(deps.storage)?;
 
-    if let Some(protocol_fee_contract) = protocol_fee_contract {
-        fee_config.protocol_fee_contract = deps.api.addr_validate(&protocol_fee_contract)?;
-    }
-
-    if let Some(protocol_reward_fee) = protocol_reward_fee {
-        if protocol_reward_fee.gt(&get_reward_fee_cap()) {
-            return Err(StdError::generic_err("'protocol_reward_fee' greater than max"));
+        if let Some(protocol_fee_contract) = protocol_fee_contract {
+            fee_config.protocol_fee_contract = deps.api.addr_validate(&protocol_fee_contract)?;
         }
-        fee_config.protocol_reward_fee = protocol_reward_fee;
+
+        if let Some(protocol_reward_fee) = protocol_reward_fee {
+            if protocol_reward_fee.gt(&get_reward_fee_cap()) {
+                return Err(StdError::generic_err("'protocol_reward_fee' greater than max"));
+            }
+            fee_config.protocol_reward_fee = protocol_reward_fee;
+        }
+
+        state.fee_config.save(deps.storage, &fee_config)?;
     }
 
-    state.fee_config.save(deps.storage, &fee_config)?;
+    if let Some(swap_config) = swap_config {
+        let is_valid = swap_config
+            .iter()
+            .all(|cfg| addr_validate_to_lower(deps.api, cfg.contract.as_str()).is_ok());
+
+        if !is_valid {
+            return Err(StdError::generic_err("'swap_config' invalid"));
+        }
+
+        state.swap_config.save(deps.storage, &swap_config)?;
+    }
 
     Ok(Response::new().add_attribute("action", "erishub/update_config"))
 }

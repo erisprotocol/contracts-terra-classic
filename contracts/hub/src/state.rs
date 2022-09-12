@@ -1,7 +1,7 @@
 use cosmwasm_std::{Addr, Coin, StdError, StdResult, Storage};
 use cw_storage_plus::{Index, IndexList, IndexedMap, Item, MultiIndex, U64Key};
 
-use eris::hub::{Batch, FeeConfig, PendingBatch, UnbondRequest};
+use eris::hub::{Batch, FeeConfig, PendingBatch, SwapConfig, UnbondRequest};
 
 use crate::types::BooleanKey;
 
@@ -29,6 +29,8 @@ pub(crate) struct State<'a> {
         IndexedMap<'a, (U64Key, &'a Addr), UnbondRequest, UnbondRequestsIndexes<'a>>,
     /// Fee Config
     pub fee_config: Item<'a, FeeConfig>,
+    /// Swap Config
+    pub swap_config: Item<'a, Vec<SwapConfig>>,
 }
 
 impl Default for State<'static> {
@@ -59,6 +61,7 @@ impl Default for State<'static> {
             previous_batches: IndexedMap::new("previous_batches", pb_indexes),
             unbond_requests: IndexedMap::new("unbond_requests", ubr_indexes),
             fee_config: Item::new("fee_config"),
+            swap_config: Item::new("swap_config"),
         }
     }
 }
