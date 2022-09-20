@@ -16,6 +16,10 @@ pub fn instantiate(
     info: MessageInfo,
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
+    if msg.mint.is_none() {
+        return Err(StdError::generic_err("'mint' needs to be enabled").into());
+    }
+
     cw20_instantiate(deps, env, info, msg)
 }
 

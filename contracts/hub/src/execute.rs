@@ -18,7 +18,10 @@ use eris::hub::{
 };
 
 use crate::constants::{get_reward_fee_cap, CONTRACT_NAME, CONTRACT_VERSION};
-use crate::helpers::{query_cw20_total_supply, query_delegation, query_delegations};
+use crate::helpers::{
+    check_swap_config, dedupe_check_received_addrs, query_cw20_total_supply, query_delegation,
+    query_delegations,
+};
 use crate::math::{
     compute_mint_amount, compute_redelegations_for_rebalancing, compute_redelegations_for_removal,
     compute_unbond_amount, compute_undelegations, mark_reconciled_batches, reconcile_batches,
@@ -42,7 +45,12 @@ pub fn instantiate(deps: DepsMut, env: Env, msg: InstantiateMsg) -> StdResult<Re
     state.owner.save(deps.storage, &deps.api.addr_validate(&msg.owner)?)?;
     state.epoch_period.save(deps.storage, &msg.epoch_period)?;
     state.unbond_period.save(deps.storage, &msg.unbond_period)?;
-    state.validators.save(deps.storage, &msg.validators)?;
+
+    let mut validators = msg.validators;
+    dedupe_check_received_addrs(&mut validators, deps.api)
+        .map_err(|_| StdError::generic_err("invalid validators"))?;
+
+    state.validators.save(deps.storage, &validators)?;
     state.unlocked_coins.save(deps.storage, &vec![])?;
     state.fee_config.save(
         deps.storage,
@@ -61,6 +69,7 @@ pub fn instantiate(deps: DepsMut, env: Env, msg: InstantiateMsg) -> StdResult<Re
         },
     )?;
 
+    check_swap_config(&msg.swap_config, deps.api)?;
     state.swap_config.save(deps.storage, &msg.swap_config)?;
 
     Ok(Response::new().add_submessage(SubMsg::reply_on_success(
@@ -683,6 +692,7 @@ pub fn add_validator(
     let state = State::default();
 
     state.assert_owner(deps.storage, &sender)?;
+    addr_validate_to_lower(deps.api, validator.as_str())?;
 
     state.validators.update(deps.storage, |mut validators| {
         if validators.contains(&validator) {
@@ -794,14 +804,7 @@ pub fn update_config(
     }
 
     if let Some(swap_config) = swap_config {
-        let is_valid = swap_config
-            .iter()
-            .all(|cfg| addr_validate_to_lower(deps.api, cfg.contract.as_str()).is_ok());
-
-        if !is_valid {
-            return Err(StdError::generic_err("'swap_config' invalid"));
-        }
-
+        check_swap_config(&swap_config, deps.api)?;
         state.swap_config.save(deps.storage, &swap_config)?;
     }
 

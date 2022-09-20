@@ -255,7 +255,7 @@ dependencies = [
 
 [[package]]
 name = "eris"
-version = "1.2.0"
+version = "1.2.1"
 dependencies = [
  "cosmwasm-std",
  "cw20",
@@ -266,7 +266,7 @@ dependencies = [
 
 [[package]]
 name = "eris-stake-token-classic"
-version = "1.1.0"
+version = "1.1.1"
 dependencies = [
  "cosmwasm-std",
  "cw20",
@@ -275,7 +275,7 @@ dependencies = [
 
 [[package]]
 name = "eris-staking-hub-classic"
-version = "1.2.0"
+version = "1.2.1"
 dependencies = [
  "cosmwasm-std",
  "cw-storage-plus",

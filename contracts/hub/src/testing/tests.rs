@@ -19,7 +19,7 @@ use eris::hub::{
 };
 
 use crate::contract::{execute, instantiate, reply};
-use crate::helpers::{parse_coin, parse_received_fund};
+use crate::helpers::{check_swap_config, dedup, parse_coin, parse_received_fund};
 use crate::math::{
     compute_redelegations_for_rebalancing, compute_redelegations_for_removal, compute_undelegations,
 };
@@ -2079,4 +2079,58 @@ fn receiving_funds() {
 
     let amount = parse_received_fund(&[Coin::new(69420, "uluna")], "uluna").unwrap();
     assert_eq!(amount, Uint128::new(69420));
+}
+
+#[test]
+fn running_dedup() {
+    let mut validators = vec![
+        "terraveloper1".to_string(),
+        "terraveloper2".to_string(),
+        "terraveloper3".to_string(),
+        "terraveloper1".to_string(),
+        "terraveloper3".to_string(),
+        "terraveloper3".to_string(),
+        "terraveloper2".to_string(),
+        "terraveloper1".to_string(),
+        "terraveloper1".to_string(),
+    ];
+    dedup(&mut validators);
+
+    assert_eq!(
+        validators,
+        vec!["terraveloper1".to_string(), "terraveloper2".to_string(), "terraveloper3".to_string()]
+    )
+}
+
+#[test]
+fn test_check_swap_config() {
+    let deps = setup_test();
+
+    let config_invalid = vec![
+        SwapConfig {
+            denom: "dupe".to_string(),
+            contract: Addr::unchecked("contract"),
+        },
+        SwapConfig {
+            denom: "dupe".to_string(),
+            contract: Addr::unchecked("contract"),
+        },
+    ];
+
+    let result = check_swap_config(&config_invalid, &deps.api);
+
+    assert_eq!(result, Err(StdError::generic_err("duplicate denom 'dupe' in swap config")));
+
+    let config_valid = vec![
+        SwapConfig {
+            denom: "uust".to_string(),
+            contract: Addr::unchecked("terratest"),
+        },
+        SwapConfig {
+            denom: "uluna".to_string(),
+            contract: Addr::unchecked("terratest"),
+        },
+    ];
+
+    check_swap_config(&config_valid, &deps.api).unwrap();
 }

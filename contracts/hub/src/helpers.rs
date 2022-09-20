@@ -1,9 +1,10 @@
-use std::str::FromStr;
+use std::{collections::HashSet, str::FromStr};
 
 use cosmwasm_std::{
-    Addr, Coin, QuerierWrapper, Reply, StdError, StdResult, SubMsgExecutionResponse, Uint128,
+    Addr, Api, Coin, QuerierWrapper, Reply, StdError, StdResult, SubMsgExecutionResponse, Uint128,
 };
 use cw20::{Cw20QueryMsg, TokenInfoResponse};
+use eris::{asset::addr_validate_to_lower, hub::SwapConfig};
 
 use crate::types::Delegation;
 
@@ -17,7 +18,8 @@ pub(crate) fn query_cw20_total_supply(
     querier: &QuerierWrapper,
     token_addr: &Addr,
 ) -> StdResult<Uint128> {
-    let token_info: TokenInfoResponse = querier.query_wasm_smart(token_addr, &Cw20QueryMsg::TokenInfo {})?;
+    let token_info: TokenInfoResponse =
+        querier.query_wasm_smart(token_addr, &Cw20QueryMsg::TokenInfo {})?;
     Ok(token_info.total_supply)
 }
 
@@ -29,7 +31,10 @@ pub(crate) fn query_delegation(
 ) -> StdResult<Delegation> {
     Ok(Delegation {
         validator: validator.to_string(),
-        amount: querier.query_delegation(delegator_addr, validator)?.map(|fd| fd.amount.amount.u128()).unwrap_or(0),
+        amount: querier
+            .query_delegation(delegator_addr, validator)?
+            .map(|fd| fd.amount.amount.u128())
+            .unwrap_or(0),
     })
 }
 
@@ -71,16 +76,18 @@ pub(crate) fn parse_coin(s: &str) -> StdResult<Coin> {
 /// sent together
 pub(crate) fn parse_received_fund(funds: &[Coin], denom: &str) -> StdResult<Uint128> {
     if funds.len() != 1 {
-        return Err(StdError::generic_err(
-            format!("must deposit exactly one coin; received {}", funds.len())
-        ));
+        return Err(StdError::generic_err(format!(
+            "must deposit exactly one coin; received {}",
+            funds.len()
+        )));
     }
 
     let fund = &funds[0];
     if fund.denom != denom {
-        return Err(StdError::generic_err(
-            format!("expected {} deposit, received {}", denom, fund.denom)
-        ));
+        return Err(StdError::generic_err(format!(
+            "expected {} deposit, received {}",
+            denom, fund.denom
+        )));
     }
 
     if fund.amount.is_zero() {
@@ -88,4 +95,37 @@ pub(crate) fn parse_received_fund(funds: &[Coin], denom: &str) -> StdResult<Uint
     }
 
     Ok(fund.amount)
+}
+
+/// Dedupes a Vector of strings using a hashset.
+pub fn dedup(v: &mut Vec<String>) {
+    let mut set = HashSet::new();
+
+    v.retain(|x| set.insert(x.clone()));
+}
+
+/// Dedupes and checks a list of received addrs
+pub fn dedupe_check_received_addrs(validators: &mut Vec<String>, api: &dyn Api) -> StdResult<()> {
+    dedup(validators);
+
+    for validator in validators {
+        api.addr_validate(validator.as_str())?;
+    }
+
+    Ok(())
+}
+
+/// Checks if the swap config is valid
+pub fn check_swap_config(swaps: &[SwapConfig], api: &dyn Api) -> StdResult<()> {
+    let mut set = HashSet::new();
+    for swap in swaps {
+        if !set.insert(swap.denom.to_lowercase().clone()) {
+            return Err(StdError::generic_err(format!(
+                "duplicate denom '{}' in swap config",
+                swap.denom
+            )));
+        }
+        addr_validate_to_lower(api, swap.contract.as_str())?;
+    }
+    Ok(())
 }
