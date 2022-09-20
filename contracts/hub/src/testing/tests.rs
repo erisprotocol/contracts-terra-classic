@@ -19,7 +19,7 @@ use eris::hub::{
 };
 
 use crate::contract::{execute, instantiate, reply};
-use crate::helpers::{check_swap_config, dedup, parse_coin, parse_received_fund};
+use crate::helpers::{check_swap_config, dedupe, parse_coin, parse_received_fund};
 use crate::math::{
     compute_redelegations_for_rebalancing, compute_redelegations_for_removal, compute_undelegations,
 };
@@ -2094,7 +2094,7 @@ fn running_dedup() {
         "terraveloper1".to_string(),
         "terraveloper1".to_string(),
     ];
-    dedup(&mut validators);
+    dedupe(&mut validators);
 
     assert_eq!(
         validators,

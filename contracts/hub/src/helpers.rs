@@ -98,7 +98,7 @@ pub(crate) fn parse_received_fund(funds: &[Coin], denom: &str) -> StdResult<Uint
 }
 
 /// Dedupes a Vector of strings using a hashset.
-pub fn dedup(v: &mut Vec<String>) {
+pub fn dedupe(v: &mut Vec<String>) {
     let mut set = HashSet::new();
 
     v.retain(|x| set.insert(x.clone()));
@@ -106,7 +106,7 @@ pub fn dedup(v: &mut Vec<String>) {
 
 /// Dedupes and checks a list of received addrs
 pub fn dedupe_check_received_addrs(validators: &mut Vec<String>, api: &dyn Api) -> StdResult<()> {
-    dedup(validators);
+    dedupe(validators);
 
     for validator in validators {
         api.addr_validate(validator.as_str())?;
