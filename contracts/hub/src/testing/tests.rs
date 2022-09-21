@@ -3,8 +3,9 @@ use std::vec;
 
 use cosmwasm_std::testing::{mock_env, mock_info, MockApi, MockStorage, MOCK_CONTRACT_ADDR};
 use cosmwasm_std::{
-    to_binary, Addr, BankMsg, Coin, CosmosMsg, Decimal, DistributionMsg, Event, Order, OwnedDeps,
-    Reply, ReplyOn, StdError, SubMsg, SubMsgExecutionResponse, Uint128, WasmMsg,
+    from_slice, to_binary, Addr, BankMsg, Binary, Coin, CosmosMsg, Decimal, DistributionMsg, Event,
+    Order, OwnedDeps, Reply, ReplyOn, StdError, StdResult, SubMsg, SubMsgExecutionResponse,
+    Uint128, WasmMsg,
 };
 use cw20::{Cw20ExecuteMsg, MinterResponse};
 use cw20_base::msg::InstantiateMsg as Cw20InstantiateMsg;
@@ -17,6 +18,7 @@ use eris::hub::{
     UnbondRequestsByBatchResponseItem, UnbondRequestsByUserResponseItem,
     UnbondRequestsByUserResponseItemDetails,
 };
+use serde::de::DeserializeOwned;
 
 use crate::contract::{execute, instantiate, reply};
 use crate::helpers::{check_swap_config, dedupe, parse_coin, parse_received_fund};
@@ -25,7 +27,7 @@ use crate::math::{
 };
 use crate::state::State;
 use crate::testing::helpers::query_helper_env;
-use crate::types::{Coins, Delegation, Redelegation, SendFee, Undelegation};
+use crate::types::{Coins, Delegation, Redelegation, Undelegation};
 
 use super::custom_querier::CustomQuerier;
 use super::helpers::{mock_dependencies, mock_env_at_timestamp, query_helper};
@@ -603,6 +605,7 @@ fn reinvesting() {
         Delegation::new("bob", 333333),
         Delegation::new("charlie", 333333),
     ]);
+    deps.querier.set_cw20_total_supply("stake_token", 333333 + 333333 + 333334);
 
     // After the swaps, `unlocked_coins` should contain only uluna and unknown denoms
     state
@@ -633,7 +636,7 @@ fn reinvesting() {
     let total = Uint128::from(234u128);
     let fee =
         Decimal::from_ratio(1u128, 100u128).checked_mul_uint(total).expect("expects fee result");
-    let delegated = total.saturating_sub(fee);
+    let delegated = total;
 
     assert_eq!(
         res.messages[0],
@@ -645,15 +648,28 @@ fn reinvesting() {
         }
     );
 
-    assert_eq!(
-        res.messages[1],
-        SubMsg {
-            id: 0,
-            msg: SendFee::new(Addr::unchecked("fee"), fee.u128()).to_cosmos_msg(),
-            gas_limit: None,
-            reply_on: ReplyOn::Never
-        }
-    );
+    match res.messages[1].msg.clone() {
+        CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr,
+            funds,
+            msg,
+        }) => {
+            assert_eq!(contract_addr, "stake_token".to_string());
+            assert_eq!(funds.len(), 0);
+
+            let sub_msg: Cw20ExecuteMsg = from_binary(&msg).unwrap();
+
+            assert_eq!(
+                sub_msg,
+                Cw20ExecuteMsg::Mint {
+                    recipient: "fee".to_string(),
+                    amount: fee
+                }
+            );
+        },
+
+        _ => panic!("DO NOT ENTER HERE"),
+    }
 
     // Storage should have been updated
     let unlocked_coins = state.unlocked_coins.load(deps.as_ref().storage).unwrap();
@@ -1237,7 +1253,7 @@ fn withdrawing_unbonded() {
     //
     // Withdrawable from batch 1: 95,197 * 23,456 / 92,876 = 24,042
     // Withdrawable from batch 2: 35,604
-    // Total withdrawable: 24,042 + 35,604 = 59,646
+    // Total withdrawable: 24,042 + 35,604 = 59,646 - 100 (fee)
     //
     // Batch 1 should be updated:
     // Total shares: 92,876 - 23,456 = 69,420
@@ -1261,7 +1277,7 @@ fn withdrawing_unbonded() {
             id: 0,
             msg: CosmosMsg::Bank(BankMsg::Send {
                 to_address: "user_1".to_string(),
-                amount: vec![Coin::new(59646, "uluna")]
+                amount: vec![Coin::new(59546, "uluna")]
             }),
             gas_limit: None,
             reply_on: ReplyOn::Never
@@ -1330,7 +1346,7 @@ fn withdrawing_unbonded() {
             id: 0,
             msg: CosmosMsg::Bank(BankMsg::Send {
                 to_address: "user_2".to_string(),
-                amount: vec![Coin::new(71155, "uluna")]
+                amount: vec![Coin::new(71055, "uluna")]
             }),
             gas_limit: None,
             reply_on: ReplyOn::Never
@@ -2133,4 +2149,8 @@ fn test_check_swap_config() {
     ];
 
     check_swap_config(&config_valid, &deps.api).unwrap();
+}
+
+pub fn from_binary<T: DeserializeOwned>(value: &Binary) -> StdResult<T> {
+    from_slice(value.as_slice())
 }

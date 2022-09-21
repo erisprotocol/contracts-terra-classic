@@ -112,7 +112,11 @@ impl Asset {
     /// * **querier** is an object of type [`QuerierWrapper`]
     ///
     /// * **recipient** is the address where the funds will be sent.
-    pub fn into_msg(self, querier: &QuerierWrapper, recipient: Addr) -> StdResult<CosmosMsg> {
+    pub fn into_msg(
+        self,
+        querier: &QuerierWrapper,
+        recipient: Addr,
+    ) -> StdResult<CosmosMsg<TerraMsgWrapper>> {
         let amount = self.amount;
 
         match &self.info {

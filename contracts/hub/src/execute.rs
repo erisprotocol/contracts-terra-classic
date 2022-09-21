@@ -2,13 +2,13 @@ use std::collections::HashMap;
 use std::str::FromStr;
 
 use cosmwasm_std::{
-    to_binary, Addr, BankMsg, Coin, CosmosMsg, Decimal, DepsMut, DistributionMsg, Env, Event,
-    Order, Response, StdError, StdResult, SubMsg, SubMsgExecutionResponse, Uint128, WasmMsg,
+    to_binary, Addr, CosmosMsg, Decimal, DepsMut, DistributionMsg, Env, Event, Order, Response,
+    StdError, StdResult, SubMsg, SubMsgExecutionResponse, Uint128, WasmMsg,
 };
 use cw2::set_contract_version;
 use cw20::{Cw20ExecuteMsg, MinterResponse};
 use cw20_base::msg::InstantiateMsg as Cw20InstantiateMsg;
-use eris::asset::{addr_validate_to_lower, Asset};
+use eris::asset::{addr_validate_to_lower, Asset, AssetInfo};
 use eris::DecimalCheckedOps;
 use terra_cosmwasm::TerraMsgWrapper;
 
@@ -27,7 +27,7 @@ use crate::math::{
     compute_unbond_amount, compute_undelegations, mark_reconciled_batches, reconcile_batches,
 };
 use crate::state::State;
-use crate::types::{Coins, Delegation, SendFee};
+use crate::types::{Coins, Delegation};
 
 //--------------------------------------------------------------------------------------------------
 // Instantiation
@@ -272,6 +272,7 @@ pub fn reinvest(deps: DepsMut, env: Env) -> StdResult<Response<TerraMsgWrapper>>
     let validators = state.validators.load(deps.storage)?;
     let mut unlocked_coins = state.unlocked_coins.load(deps.storage)?;
     let fee_config = state.fee_config.load(deps.storage)?;
+    let stake_token = state.stake_token.load(deps.storage)?;
 
     let uluna_available = unlocked_coins
         .iter()
@@ -289,8 +290,12 @@ pub fn reinvest(deps: DepsMut, env: Env) -> StdResult<Response<TerraMsgWrapper>>
         }
     }
 
+    let ustake_supply = query_cw20_total_supply(&deps.querier, &stake_token)?;
     let protocol_fee_amount = fee_config.protocol_reward_fee.checked_mul_uint(uluna_available)?;
-    let uluna_to_bond = uluna_available.saturating_sub(protocol_fee_amount);
+    let protocol_fee_mint_amount =
+        compute_mint_amount(ustake_supply, protocol_fee_amount, &delegations);
+
+    let uluna_to_bond = uluna_available;
 
     let new_delegation = Delegation::new(validator, uluna_to_bond.u128());
 
@@ -301,13 +306,22 @@ pub fn reinvest(deps: DepsMut, env: Env) -> StdResult<Response<TerraMsgWrapper>>
         .add_attribute("time", env.block.time.seconds().to_string())
         .add_attribute("height", env.block.height.to_string())
         .add_attribute("uluna_bonded", uluna_to_bond)
-        .add_attribute("uluna_protocol_fee", protocol_fee_amount);
+        .add_attribute("uluna_protocol_fee", protocol_fee_amount)
+        .add_attribute("uluna_protocol_fee_mint", protocol_fee_mint_amount);
 
     let mut msgs = vec![new_delegation.to_cosmos_msg()];
 
-    if !protocol_fee_amount.is_zero() {
-        let send_fee = SendFee::new(fee_config.protocol_fee_contract, protocol_fee_amount.u128());
-        msgs.push(send_fee.to_cosmos_msg());
+    if !protocol_fee_mint_amount.is_zero() {
+        let mint_msg: CosmosMsg<TerraMsgWrapper> = CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: stake_token.into(),
+            msg: to_binary(&Cw20ExecuteMsg::Mint {
+                recipient: fee_config.protocol_fee_contract.to_string(),
+                amount: protocol_fee_mint_amount,
+            })?,
+            funds: vec![],
+        });
+
+        msgs.push(mint_msg);
     }
 
     Ok(Response::new()
@@ -638,10 +652,15 @@ pub fn withdraw_unbonded(
         return Err(StdError::generic_err("withdrawable amount is zero"));
     }
 
-    let refund_msg = CosmosMsg::Bank(BankMsg::Send {
-        to_address: receiver.clone().into(),
-        amount: vec![Coin::new(total_uluna_to_refund.u128(), "uluna")],
-    });
+    let refund_asset = Asset {
+        info: AssetInfo::NativeToken {
+            denom: "uluna".to_string(),
+        },
+        amount: total_uluna_to_refund,
+    };
+
+    let tax = refund_asset.compute_tax(&deps.querier)?;
+    let refund_msg = refund_asset.into_msg(&deps.querier, receiver.clone())?;
 
     let event = Event::new("erishub/unbonded_withdrawn")
         .add_attribute("time", env.block.time.seconds().to_string())
@@ -649,7 +668,8 @@ pub fn withdraw_unbonded(
         .add_attribute("ids", ids.join(","))
         .add_attribute("user", user)
         .add_attribute("receiver", receiver)
-        .add_attribute("uluna_refunded", total_uluna_to_refund);
+        .add_attribute("uluna_refunded", total_uluna_to_refund)
+        .add_attribute("tax", tax);
 
     Ok(Response::new()
         .add_message(refund_msg)
