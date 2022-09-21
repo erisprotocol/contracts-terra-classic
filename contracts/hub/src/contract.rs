@@ -191,6 +191,11 @@ pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response
                 let state = State::default();
                 state.swap_config.save(deps.storage, &vec![])?;
             },
+            "1.1.1" => {},
+            "1.1.2" => {},
+            "1.2.0" => {},
+            "1.2.1" => {},
+            "1.2.2" => {},
             _ => return Err(StdError::generic_err("Error during migration")),
         },
         _ => return Err(StdError::generic_err("Error during migration")),
