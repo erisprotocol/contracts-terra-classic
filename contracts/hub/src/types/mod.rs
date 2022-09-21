@@ -4,4 +4,4 @@ mod msgs;
 
 pub use coins::Coins;
 pub use keys::BooleanKey;
-pub use msgs::{Delegation, Redelegation, SendFee, Undelegation};
+pub use msgs::{Delegation, Redelegation, Undelegation};

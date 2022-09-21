@@ -1,6 +1,6 @@
 [package]
 name = "eris"
-version = "1.2.1"
+version = "1.2.2"
 authors = ["devs <devs@erisprotocol.com>"]
 edition = "2018"
 description = "Liquid staking protocol for terra classic"
