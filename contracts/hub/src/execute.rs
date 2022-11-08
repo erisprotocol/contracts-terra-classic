@@ -8,7 +8,7 @@ use cosmwasm_std::{
 use cw2::set_contract_version;
 use cw20::{Cw20ExecuteMsg, MinterResponse};
 use cw20_base::msg::InstantiateMsg as Cw20InstantiateMsg;
-use eris::asset::{addr_validate_to_lower, Asset, AssetInfo};
+use eris::asset::{Asset, AssetInfo};
 use eris::DecimalCheckedOps;
 use terra_cosmwasm::TerraMsgWrapper;
 
@@ -19,8 +19,7 @@ use eris::hub::{
 
 use crate::constants::{get_reward_fee_cap, CONTRACT_NAME, CONTRACT_VERSION};
 use crate::helpers::{
-    check_swap_config, dedupe_check_received_addrs, query_cw20_total_supply, query_delegation,
-    query_delegations,
+    check_swap_config, dedupe, query_cw20_total_supply, query_delegation, query_delegations,
 };
 use crate::math::{
     compute_mint_amount, compute_redelegations_for_rebalancing, compute_redelegations_for_removal,
@@ -47,8 +46,7 @@ pub fn instantiate(deps: DepsMut, env: Env, msg: InstantiateMsg) -> StdResult<Re
     state.unbond_period.save(deps.storage, &msg.unbond_period)?;
 
     let mut validators = msg.validators;
-    dedupe_check_received_addrs(&mut validators, deps.api)
-        .map_err(|_| StdError::generic_err("invalid validators"))?;
+    dedupe(&mut validators);
 
     state.validators.save(deps.storage, &validators)?;
     state.unlocked_coins.save(deps.storage, &vec![])?;
@@ -712,7 +710,6 @@ pub fn add_validator(
     let state = State::default();
 
     state.assert_owner(deps.storage, &sender)?;
-    addr_validate_to_lower(deps.api, validator.as_str())?;
 
     state.validators.update(deps.storage, |mut validators| {
         if validators.contains(&validator) {

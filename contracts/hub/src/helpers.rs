@@ -104,17 +104,6 @@ pub fn dedupe(v: &mut Vec<String>) {
     v.retain(|x| set.insert(x.clone()));
 }
 
-/// Dedupes and checks a list of received addrs
-pub fn dedupe_check_received_addrs(validators: &mut Vec<String>, api: &dyn Api) -> StdResult<()> {
-    dedupe(validators);
-
-    for validator in validators {
-        api.addr_validate(validator.as_str())?;
-    }
-
-    Ok(())
-}
-
 /// Checks if the swap config is valid
 pub fn check_swap_config(swaps: &[SwapConfig], api: &dyn Api) -> StdResult<()> {
     let mut set = HashSet::new();
