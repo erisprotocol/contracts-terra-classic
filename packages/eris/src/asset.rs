@@ -4,11 +4,12 @@ use serde::{Deserialize, Serialize};
 use std::fmt;
 
 use cosmwasm_std::{
-    to_binary, Addr, Api, BankMsg, Coin, CosmosMsg, Decimal, MessageInfo, QuerierWrapper, StdError,
-    StdResult, Uint128, WasmMsg,
+    to_binary, Addr, Api, BankMsg, Coin, CosmosMsg, Decimal, MessageInfo, QuerierWrapper,
+    QueryRequest, StdError, StdResult, Uint128, WasmMsg,
 };
 use cw20::Cw20ExecuteMsg;
-use terra_cosmwasm::{TerraMsgWrapper, TerraQuerier};
+
+use crate::terra::{TaxCapResponse, TaxRateResponse, TerraQueryWrapper};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
@@ -59,15 +60,22 @@ impl Asset {
     /// * **self** is the type of the caller object.
     ///
     /// * **querier** is an object of type [`QuerierWrapper`]
-    pub fn compute_tax(&self, querier: &QuerierWrapper) -> StdResult<Uint128> {
+    pub fn compute_tax(&self, querier: &QuerierWrapper<TerraQueryWrapper>) -> StdResult<Uint128> {
         let amount = self.amount;
         if let AssetInfo::NativeToken {
             denom,
         } = &self.info
         {
-            let terra_querier = TerraQuerier::new(querier);
-            let tax_rate: Decimal = (terra_querier.query_tax_rate()?).rate;
-            let tax_cap: Uint128 = (terra_querier.query_tax_cap(denom.to_string())?).cap;
+            let tax_rate_response: TaxRateResponse =
+                querier.query(&QueryRequest::Custom(TerraQueryWrapper::TaxRate {}))?;
+
+            let tax_cap_response: TaxCapResponse =
+                querier.query(&QueryRequest::Custom(TerraQueryWrapper::TaxCap {
+                    denom: denom.to_string(),
+                }))?;
+
+            let tax_rate: Decimal = tax_rate_response.rate;
+            let tax_cap: Uint128 = tax_cap_response.cap;
             Ok(std::cmp::min(
                 (amount.checked_sub(amount.multiply_ratio(
                     DECIMAL_FRACTION,
@@ -85,7 +93,7 @@ impl Asset {
     /// * **self** is the type of the caller object.
     ///
     /// * **querier** is an object of type [`QuerierWrapper`]
-    pub fn deduct_tax(&self, querier: &QuerierWrapper) -> StdResult<Coin> {
+    pub fn deduct_tax(&self, querier: &QuerierWrapper<TerraQueryWrapper>) -> StdResult<Coin> {
         let amount = self.amount;
         if let AssetInfo::NativeToken {
             denom,
@@ -114,9 +122,9 @@ impl Asset {
     /// * **recipient** is the address where the funds will be sent.
     pub fn into_msg(
         self,
-        querier: &QuerierWrapper,
+        querier: &QuerierWrapper<TerraQueryWrapper>,
         recipient: Addr,
-    ) -> StdResult<CosmosMsg<TerraMsgWrapper>> {
+    ) -> StdResult<CosmosMsg> {
         let amount = self.amount;
 
         match &self.info {
@@ -141,11 +149,11 @@ impl Asset {
 
     pub fn into_swap_msg(
         self,
-        querier: &QuerierWrapper,
+        querier: &QuerierWrapper<TerraQueryWrapper>,
         pair_contract: String,
         max_spread: Option<Decimal>,
         to: Option<String>,
-    ) -> StdResult<CosmosMsg<TerraMsgWrapper>> {
+    ) -> StdResult<CosmosMsg> {
         match &self.info {
             AssetInfo::NativeToken {
                 denom,

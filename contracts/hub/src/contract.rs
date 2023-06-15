@@ -4,7 +4,7 @@ use cosmwasm_std::{
 };
 use cw2::{get_contract_version, set_contract_version};
 use cw20::Cw20ReceiveMsg;
-use terra_cosmwasm::TerraMsgWrapper;
+use eris::terra::TerraQueryWrapper;
 
 use eris::hub::{CallbackMsg, ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg, ReceiveMsg};
 
@@ -15,7 +15,7 @@ use crate::{execute, queries};
 
 #[entry_point]
 pub fn instantiate(
-    deps: DepsMut,
+    deps: DepsMut<TerraQueryWrapper>,
     env: Env,
     _info: MessageInfo,
     msg: InstantiateMsg,
@@ -25,11 +25,11 @@ pub fn instantiate(
 
 #[entry_point]
 pub fn execute(
-    deps: DepsMut,
+    deps: DepsMut<TerraQueryWrapper>,
     env: Env,
     info: MessageInfo,
     msg: ExecuteMsg,
-) -> StdResult<Response<TerraMsgWrapper>> {
+) -> StdResult<Response> {
     let api = deps.api;
     match msg {
         ExecuteMsg::Receive(cw20_msg) => receive(deps, env, info, cw20_msg),
@@ -83,11 +83,11 @@ pub fn execute(
 }
 
 fn receive(
-    deps: DepsMut,
+    deps: DepsMut<TerraQueryWrapper>,
     env: Env,
     info: MessageInfo,
     cw20_msg: Cw20ReceiveMsg,
-) -> StdResult<Response<TerraMsgWrapper>> {
+) -> StdResult<Response> {
     let api = deps.api;
     match from_binary(&cw20_msg.msg)? {
         ReceiveMsg::QueueUnbond {
@@ -114,39 +114,34 @@ fn receive(
 }
 
 fn callback(
-    deps: DepsMut,
+    deps: DepsMut<TerraQueryWrapper>,
     env: Env,
     info: MessageInfo,
     callback_msg: CallbackMsg,
-) -> StdResult<Response<TerraMsgWrapper>> {
+) -> StdResult<Response> {
     if env.contract.address != info.sender {
         return Err(StdError::generic_err("callbacks can only be invoked by the contract itself"));
     }
 
     match callback_msg {
-        CallbackMsg::Swap {} => execute::swap(deps),
+        CallbackMsg::Swap {} => execute::swap(deps, env),
         CallbackMsg::Reinvest {} => execute::reinvest(deps, env),
+        CallbackMsg::CheckReceivedCoin {
+            snapshot,
+        } => execute::callback_received_coin(deps, env, snapshot),
     }
 }
 
 #[entry_point]
-pub fn reply(deps: DepsMut, env: Env, reply: Reply) -> StdResult<Response> {
+pub fn reply(deps: DepsMut<TerraQueryWrapper>, _env: Env, reply: Reply) -> StdResult<Response> {
     match reply.id {
         1 => execute::register_stake_token(deps, unwrap_reply(reply)?),
-        2 => execute::register_received_coins(
-            deps,
-            env,
-            unwrap_reply(reply)?.events,
-            "coin_received",
-            "receiver",
-            "amount",
-        ),
-        id => Err(StdError::generic_err(format!("invalid reply id: {}; must be 1-2", id))),
+        id => Err(StdError::generic_err(format!("invalid reply id: {}; must be 1", id))),
     }
 }
 
 #[entry_point]
-pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
+pub fn query(deps: Deps<TerraQueryWrapper>, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::Config {} => to_binary(&queries::config(deps)?),
         QueryMsg::State {} => to_binary(&queries::state(deps, env)?),
@@ -182,7 +177,11 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
 }
 
 #[entry_point]
-pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response<TerraMsgWrapper>> {
+pub fn migrate(
+    deps: DepsMut<TerraQueryWrapper>,
+    _env: Env,
+    _msg: MigrateMsg,
+) -> StdResult<Response> {
     let contract_version = get_contract_version(deps.storage)?;
 
     match contract_version.contract.as_ref() {

@@ -77,7 +77,7 @@ mod tests {
     use super::*;
 
     fn setup_test() -> OwnedDeps<MockStorage, MockApi, MockQuerier> {
-        let mut deps = mock_dependencies(&[]);
+        let mut deps = mock_dependencies();
 
         TOKEN_INFO
             .save(

@@ -6,7 +6,7 @@ use cosmwasm_std::{
     SystemError, WasmQuery,
 };
 use cw20::Cw20QueryMsg;
-use terra_cosmwasm::TerraQueryWrapper;
+use eris::terra::TerraQueryWrapper;
 
 use crate::types::Delegation;
 
@@ -101,10 +101,7 @@ impl CustomQuerier {
                 err_unsupported_query(msg)
             },
 
-            QueryRequest::Custom(TerraQueryWrapper {
-                route: _,
-                query_data,
-            }) => self.terra_querier.handle_query(query_data),
+            QueryRequest::Custom(query) => self.terra_querier.handle_query(query),
 
             QueryRequest::Bank(query) => self.bank_querier.query(query),
 

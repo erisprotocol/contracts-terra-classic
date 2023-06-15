@@ -1,23 +1,20 @@
-use std::collections::HashMap;
-use std::str::FromStr;
-
 use cosmwasm_std::{
-    to_binary, Addr, CosmosMsg, Decimal, DepsMut, DistributionMsg, Env, Event, Order, Response,
-    StdError, StdResult, SubMsg, SubMsgExecutionResponse, Uint128, WasmMsg,
+    to_binary, Addr, Coin, CosmosMsg, Decimal, DepsMut, DistributionMsg, Env, Event, Order,
+    Response, StdError, StdResult, SubMsg, SubMsgResponse, Uint128, WasmMsg,
 };
 use cw2::set_contract_version;
 use cw20::{Cw20ExecuteMsg, MinterResponse};
 use cw20_base::msg::InstantiateMsg as Cw20InstantiateMsg;
 use eris::asset::{Asset, AssetInfo};
-use eris::DecimalCheckedOps;
-use terra_cosmwasm::TerraMsgWrapper;
+use eris::terra::TerraQueryWrapper;
+use eris::{CustomResponse, DecimalCheckedOps};
 
 use eris::hub::{
     Batch, CallbackMsg, ExecuteMsg, FeeConfig, InstantiateMsg, PendingBatch, SwapConfig,
     UnbondRequest,
 };
 
-use crate::constants::{get_reward_fee_cap, CONTRACT_NAME, CONTRACT_VERSION};
+use crate::constants::{get_reward_fee_cap, CONTRACT_DENOM, CONTRACT_NAME, CONTRACT_VERSION};
 use crate::helpers::{
     check_swap_config, dedupe, query_cw20_total_supply, query_delegation, query_delegations,
 };
@@ -28,11 +25,17 @@ use crate::math::{
 use crate::state::State;
 use crate::types::{Coins, Delegation};
 
+type ContractResult = StdResult<Response>;
+
 //--------------------------------------------------------------------------------------------------
 // Instantiation
 //--------------------------------------------------------------------------------------------------
 
-pub fn instantiate(deps: DepsMut, env: Env, msg: InstantiateMsg) -> StdResult<Response> {
+pub fn instantiate(
+    deps: DepsMut<TerraQueryWrapper>,
+    env: Env,
+    msg: InstantiateMsg,
+) -> StdResult<Response> {
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
     let state = State::default();
@@ -93,8 +96,8 @@ pub fn instantiate(deps: DepsMut, env: Env, msg: InstantiateMsg) -> StdResult<Re
 }
 
 pub fn register_stake_token(
-    deps: DepsMut,
-    response: SubMsgExecutionResponse,
+    deps: DepsMut<TerraQueryWrapper>,
+    response: SubMsgResponse,
 ) -> StdResult<Response> {
     let state = State::default();
 
@@ -107,7 +110,11 @@ pub fn register_stake_token(
     let contract_addr_str = &event
         .attributes
         .iter()
-        .find(|attr| attr.key == "contract_address")
+        .find(|attr| {
+            attr.key == "contract_address"
+                || attr.key == "_contract_address"
+                || attr.key == "_contract_addr"
+        })
         .ok_or_else(|| StdError::generic_err("cannot find `contract_address` attribute"))?
         .value;
 
@@ -130,12 +137,12 @@ pub fn register_stake_token(
 /// (e.g. when a single user makes a very big deposit), anyone can invoke `ExecuteMsg::Rebalance`
 /// to balance the delegations.
 pub fn bond(
-    deps: DepsMut,
+    deps: DepsMut<TerraQueryWrapper>,
     env: Env,
     receiver: Addr,
     uluna_to_bond: Uint128,
     donate: bool,
-) -> StdResult<Response<TerraMsgWrapper>> {
+) -> StdResult<Response> {
     let state = State::default();
     let stake_token = state.stake_token.load(deps.storage)?;
     let validators = state.validators.load(deps.storage)?;
@@ -165,9 +172,9 @@ pub fn bond(
         compute_mint_amount(ustake_supply, uluna_to_bond, &delegations)
     };
 
-    let delegate_submsg = SubMsg::reply_on_success(new_delegation.to_cosmos_msg(), 2);
+    let delegate_msg = new_delegation.to_cosmos_msg();
 
-    let mint_msg: CosmosMsg<TerraMsgWrapper> = CosmosMsg::Wasm(WasmMsg::Execute {
+    let mint_msg: CosmosMsg = CosmosMsg::Wasm(WasmMsg::Execute {
         contract_addr: stake_token.into(),
         msg: to_binary(&Cw20ExecuteMsg::Mint {
             recipient: receiver.to_string(),
@@ -183,7 +190,7 @@ pub fn bond(
         .add_attribute("uluna_bonded", uluna_to_bond)
         .add_attribute("ustake_minted", ustake_to_mint);
 
-    let mut response = Response::new().add_submessage(delegate_submsg);
+    let mut response = Response::new().add_message(delegate_msg);
 
     if !donate {
         response = response.add_message(mint_msg);
@@ -191,23 +198,20 @@ pub fn bond(
 
     response = response.add_event(event).add_attribute("action", "erishub/bond");
 
-    Ok(response)
+    Ok(response.add_message(check_received_coin_msg(&deps, &env, Some(uluna_to_bond))?))
 }
 
-pub fn harvest(deps: DepsMut, env: Env) -> StdResult<Response<TerraMsgWrapper>> {
-    let withdraw_submsgs = deps
+pub fn harvest(deps: DepsMut<TerraQueryWrapper>, env: Env) -> StdResult<Response> {
+    let withdraw_msgs = deps
         .querier
         .query_all_delegations(&env.contract.address)?
         .into_iter()
         .map(|d| {
-            SubMsg::reply_on_success(
-                CosmosMsg::Distribution(DistributionMsg::WithdrawDelegatorReward {
-                    validator: d.validator,
-                }),
-                2,
-            )
+            CosmosMsg::Distribution(DistributionMsg::WithdrawDelegatorReward {
+                validator: d.validator,
+            })
         })
-        .collect::<Vec<_>>();
+        .collect::<Vec<CosmosMsg>>();
 
     let callback_msgs = vec![CallbackMsg::Swap {}, CallbackMsg::Reinvest {}]
         .iter()
@@ -215,48 +219,39 @@ pub fn harvest(deps: DepsMut, env: Env) -> StdResult<Response<TerraMsgWrapper>> 
         .collect::<StdResult<Vec<_>>>()?;
 
     Ok(Response::new()
-        .add_submessages(withdraw_submsgs)
+        .add_messages(withdraw_msgs)
+        .add_message(check_received_coin_msg(&deps, &env, None)?)
         .add_messages(callback_msgs)
         .add_attribute("action", "erishub/harvest"))
 }
 
-pub fn swap(deps: DepsMut) -> StdResult<Response<TerraMsgWrapper>> {
+pub fn swap(deps: DepsMut<TerraQueryWrapper>, env: Env) -> StdResult<Response> {
     let state = State::default();
-    let mut unlocked_coins = state.unlocked_coins.load(deps.storage)?;
     let swap_config = state.swap_config.load(deps.storage)?;
 
-    let known_denoms =
-        swap_config.into_iter().map(|item| (item.denom, item.contract)).collect::<HashMap<_, _>>();
+    let mut swap_msgs: Vec<CosmosMsg> = vec![];
 
-    let swap_submsgs = unlocked_coins
-        .iter()
-        .cloned()
-        .filter(|coin| known_denoms.contains_key(&coin.denom))
-        .map(|coin| {
-            SubMsg::reply_on_success(
+    for item in swap_config.into_iter() {
+        let balance = deps.querier.query_balance(env.contract.address.clone(), item.denom)?;
+        if !balance.amount.is_zero() {
+            swap_msgs.push(
                 Asset {
                     info: eris::asset::AssetInfo::NativeToken {
-                        denom: coin.denom.clone(),
+                        denom: balance.denom.clone(),
                     },
-                    amount: coin.amount,
+                    amount: balance.amount,
                 }
                 .into_swap_msg(
                     &deps.querier,
-                    known_denoms.get(&coin.denom).unwrap().to_string(),
+                    item.contract.to_string(),
                     None,
                     None,
-                )
-                .unwrap(),
-                // 2 is used for parsing coin_received, receiver == contract_addr, amount value
-                2,
+                )?,
             )
-        })
-        .collect::<Vec<_>>();
+        }
+    }
 
-    unlocked_coins.retain(|coin| !known_denoms.contains_key(&coin.denom));
-    state.unlocked_coins.save(deps.storage, &unlocked_coins)?;
-
-    Ok(Response::new().add_submessages(swap_submsgs).add_attribute("action", "erishub/swap"))
+    Ok(Response::new().add_messages(swap_msgs).add_attribute("action", "erishub/swap"))
 }
 
 /// NOTE:
@@ -265,7 +260,7 @@ pub fn swap(deps: DepsMut) -> StdResult<Response<TerraMsgWrapper>> {
 /// execution.
 /// 2. Same as with `bond`, in the latest implementation we only delegate staking rewards with the
 /// validator that has the smallest delegation amount.
-pub fn reinvest(deps: DepsMut, env: Env) -> StdResult<Response<TerraMsgWrapper>> {
+pub fn reinvest(deps: DepsMut<TerraQueryWrapper>, env: Env) -> StdResult<Response> {
     let state = State::default();
     let validators = state.validators.load(deps.storage)?;
     let mut unlocked_coins = state.unlocked_coins.load(deps.storage)?;
@@ -310,7 +305,7 @@ pub fn reinvest(deps: DepsMut, env: Env) -> StdResult<Response<TerraMsgWrapper>>
     let mut msgs = vec![new_delegation.to_cosmos_msg()];
 
     if !protocol_fee_mint_amount.is_zero() {
-        let mint_msg: CosmosMsg<TerraMsgWrapper> = CosmosMsg::Wasm(WasmMsg::Execute {
+        let mint_msg: CosmosMsg = CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: stake_token.into(),
             msg: to_binary(&Cw20ExecuteMsg::Mint {
                 recipient: fee_config.protocol_fee_contract.to_string(),
@@ -328,69 +323,56 @@ pub fn reinvest(deps: DepsMut, env: Env) -> StdResult<Response<TerraMsgWrapper>>
         .add_attribute("action", "erishub/reinvest"))
 }
 
-/// NOTE: a `SubMsgExecutionResponse` may contain multiple coin-receiving events, must handle them indivitually
-pub fn register_received_coins(
-    deps: DepsMut,
-    env: Env,
-    mut events: Vec<Event>,
-    event_type: &str,
-    receiver_key: &str,
-    received_coins_key: &str,
-) -> StdResult<Response> {
-    events.retain(|event| event.ty == event_type);
-    if events.is_empty() {
-        return Ok(Response::new());
+/// This callback is used to take a current snapshot of the balance and add the received balance to the unlocked_coins state after the execution
+fn check_received_coin_msg(
+    deps: &DepsMut<TerraQueryWrapper>,
+    env: &Env,
+    // offset to account for funds being sent that should be ignored
+    negative_offset: Option<Uint128>,
+) -> StdResult<CosmosMsg> {
+    let mut amount =
+        deps.querier.query_balance(env.contract.address.to_string(), CONTRACT_DENOM)?.amount;
+
+    if let Some(negative_offset) = negative_offset {
+        amount = amount.checked_sub(negative_offset)?;
     }
 
-    let mut received_coins = Coins(vec![]);
-    for event in &events {
-        received_coins.add_many(&parse_coin_receiving_event(
-            &env,
-            event,
-            receiver_key,
-            received_coins_key,
-        )?)?;
+    CallbackMsg::CheckReceivedCoin {
+        // 0. take current balance - offset
+        snapshot: Coin {
+            denom: CONTRACT_DENOM.to_string(),
+            amount,
+        },
     }
-
-    let state = State::default();
-    state.unlocked_coins.update(deps.storage, |coins| -> StdResult<_> {
-        let mut coins = Coins(coins);
-        coins.add_many(&received_coins)?;
-        Ok(coins.0)
-    })?;
-
-    Ok(Response::new().add_attribute("action", "erishub/register_received_coins"))
+    .into_cosmos_msg(&env.contract.address)
 }
 
-fn parse_coin_receiving_event(
-    env: &Env,
-    event: &Event,
-    receiver_key: &str,
-    received_coins_key: &str,
-) -> StdResult<Coins> {
-    let receiver = &event
-        .attributes
-        .iter()
-        .find(|attr| attr.key == receiver_key)
-        .ok_or_else(|| StdError::generic_err(format!("cannot find `{}` attribute", receiver_key)))?
-        .value;
+pub fn callback_received_coin(
+    deps: DepsMut<TerraQueryWrapper>,
+    env: Env,
+    snapshot: Coin,
+) -> ContractResult {
+    // in some cosmwasm versions the events are not received in the callback
+    // so each time the contract can receive some coins from rewards we also need to check after receiving some and add them to the unlocked_coins
+    let current_balance =
+        deps.querier.query_balance(env.contract.address, snapshot.denom.to_string())?.amount;
 
-    let received_coins_str = &event
-        .attributes
-        .iter()
-        .find(|attr| attr.key == received_coins_key)
-        .ok_or_else(|| {
-            StdError::generic_err(format!("cannot find `{}` attribute", received_coins_key))
-        })?
-        .value;
+    if current_balance > snapshot.amount {
+        let amount = current_balance.checked_sub(snapshot.amount)?;
+        let event = Event::new("erishub/received")
+            .add_attribute("received_coin", amount.to_string() + snapshot.denom.as_str());
 
-    let received_coins = if *receiver == env.contract.address {
-        Coins::from_str(received_coins_str)?
-    } else {
-        Coins(vec![])
-    };
+        let state = State::default();
+        state.unlocked_coins.update(deps.storage, |coins| -> StdResult<_> {
+            let mut coins = Coins(coins);
+            coins.add(&Coin::new(amount.u128(), snapshot.denom))?;
+            Ok(coins.0)
+        })?;
 
-    Ok(received_coins)
+        return Ok(Response::new().add_event(event).add_attribute("action", "erishub/received"));
+    }
+
+    Ok(Response::new().add_attribute("action", "erishub/received"))
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -398,11 +380,11 @@ fn parse_coin_receiving_event(
 //--------------------------------------------------------------------------------------------------
 
 pub fn queue_unbond(
-    deps: DepsMut,
+    deps: DepsMut<TerraQueryWrapper>,
     env: Env,
     receiver: Addr,
     ustake_to_burn: Uint128,
-) -> StdResult<Response<TerraMsgWrapper>> {
+) -> StdResult<Response> {
     let state = State::default();
 
     let mut pending_batch = state.pending_batch.load(deps.storage)?;
@@ -411,7 +393,7 @@ pub fn queue_unbond(
 
     state.unbond_requests.update(
         deps.storage,
-        (pending_batch.id.into(), &receiver),
+        (pending_batch.id, &receiver),
         |x| -> StdResult<_> {
             let mut request = x.unwrap_or_else(|| UnbondRequest {
                 id: pending_batch.id,
@@ -423,7 +405,7 @@ pub fn queue_unbond(
         },
     )?;
 
-    let mut msgs: Vec<CosmosMsg<TerraMsgWrapper>> = vec![];
+    let mut msgs: Vec<CosmosMsg> = vec![];
     let mut start_time = pending_batch.est_unbond_start_time.to_string();
     if env.block.time.seconds() >= pending_batch.est_unbond_start_time {
         start_time = "immediate".to_string();
@@ -448,7 +430,7 @@ pub fn queue_unbond(
         .add_attribute("action", "erishub/queue_unbond"))
 }
 
-pub fn submit_batch(deps: DepsMut, env: Env) -> StdResult<Response<TerraMsgWrapper>> {
+pub fn submit_batch(deps: DepsMut<TerraQueryWrapper>, env: Env) -> StdResult<Response> {
     let state = State::default();
     let stake_token = state.stake_token.load(deps.storage)?;
     let validators = state.validators.load(deps.storage)?;
@@ -481,7 +463,7 @@ pub fn submit_batch(deps: DepsMut, env: Env) -> StdResult<Response<TerraMsgWrapp
     // I don't have a solution for this... other than to manually fund contract with the slashed amount.
     state.previous_batches.save(
         deps.storage,
-        pending_batch.id.into(),
+        pending_batch.id,
         &Batch {
             id: pending_batch.id,
             reconciled: false,
@@ -501,10 +483,7 @@ pub fn submit_batch(deps: DepsMut, env: Env) -> StdResult<Response<TerraMsgWrapp
         },
     )?;
 
-    let undelegate_submsgs = new_undelegations
-        .iter()
-        .map(|d| SubMsg::reply_on_success(d.to_cosmos_msg(), 2))
-        .collect::<Vec<_>>();
+    let undelegate_msgs = new_undelegations.iter().map(|d| d.to_cosmos_msg()).collect::<Vec<_>>();
 
     let burn_msg = CosmosMsg::Wasm(WasmMsg::Execute {
         contract_addr: stake_token.into(),
@@ -522,13 +501,14 @@ pub fn submit_batch(deps: DepsMut, env: Env) -> StdResult<Response<TerraMsgWrapp
         .add_attribute("ustake_burned", pending_batch.ustake_to_burn);
 
     Ok(Response::new()
-        .add_submessages(undelegate_submsgs)
+        .add_messages(undelegate_msgs)
         .add_message(burn_msg)
+        .add_message(check_received_coin_msg(&deps, &env, None)?)
         .add_event(event)
         .add_attribute("action", "erishub/unbond"))
 }
 
-pub fn reconcile(deps: DepsMut, env: Env) -> StdResult<Response<TerraMsgWrapper>> {
+pub fn reconcile(deps: DepsMut<TerraQueryWrapper>, env: Env) -> StdResult<Response> {
     let state = State::default();
     let current_time = env.block.time.seconds();
 
@@ -565,7 +545,7 @@ pub fn reconcile(deps: DepsMut, env: Env) -> StdResult<Response<TerraMsgWrapper>
     if uluna_actual >= uluna_expected {
         mark_reconciled_batches(&mut batches);
         for batch in &batches {
-            state.previous_batches.save(deps.storage, batch.id.into(), batch)?;
+            state.previous_batches.save(deps.storage, batch.id, batch)?;
         }
         let ids = batches.iter().map(|b| b.id.to_string()).collect::<Vec<_>>().join(",");
         let event = Event::new("erishub/reconciled")
@@ -579,7 +559,7 @@ pub fn reconcile(deps: DepsMut, env: Env) -> StdResult<Response<TerraMsgWrapper>
     reconcile_batches(&mut batches, uluna_to_deduct);
 
     for batch in &batches {
-        state.previous_batches.save(deps.storage, batch.id.into(), batch)?;
+        state.previous_batches.save(deps.storage, batch.id, batch)?;
     }
 
     let ids = batches.iter().map(|b| b.id.to_string()).collect::<Vec<_>>().join(",");
@@ -592,11 +572,11 @@ pub fn reconcile(deps: DepsMut, env: Env) -> StdResult<Response<TerraMsgWrapper>
 }
 
 pub fn withdraw_unbonded(
-    deps: DepsMut,
+    deps: DepsMut<TerraQueryWrapper>,
     env: Env,
     user: Addr,
     receiver: Addr,
-) -> StdResult<Response<TerraMsgWrapper>> {
+) -> StdResult<Response> {
     let state = State::default();
     let current_time = env.block.time.seconds();
 
@@ -624,7 +604,7 @@ pub fn withdraw_unbonded(
     let mut total_uluna_to_refund = Uint128::zero();
     let mut ids: Vec<String> = vec![];
     for request in &requests {
-        if let Ok(mut batch) = state.previous_batches.load(deps.storage, request.id.into()) {
+        if let Ok(mut batch) = state.previous_batches.load(deps.storage, request.id) {
             if batch.reconciled && batch.est_unbond_end_time < current_time {
                 let uluna_to_refund =
                     batch.uluna_unclaimed.multiply_ratio(request.shares, batch.total_shares);
@@ -636,12 +616,12 @@ pub fn withdraw_unbonded(
                 batch.uluna_unclaimed -= uluna_to_refund;
 
                 if batch.total_shares.is_zero() {
-                    state.previous_batches.remove(deps.storage, request.id.into())?;
+                    state.previous_batches.remove(deps.storage, request.id)?;
                 } else {
-                    state.previous_batches.save(deps.storage, batch.id.into(), &batch)?;
+                    state.previous_batches.save(deps.storage, batch.id, &batch)?;
                 }
 
-                state.unbond_requests.remove(deps.storage, (request.id.into(), &user))?;
+                state.unbond_requests.remove(deps.storage, (request.id, &user))?;
             }
         }
     }
@@ -679,7 +659,7 @@ pub fn withdraw_unbonded(
 // Ownership and management logics
 //--------------------------------------------------------------------------------------------------
 
-pub fn rebalance(deps: DepsMut, env: Env) -> StdResult<Response<TerraMsgWrapper>> {
+pub fn rebalance(deps: DepsMut<TerraQueryWrapper>, env: Env) -> StdResult<Response> {
     let state = State::default();
     let validators = state.validators.load(deps.storage)?;
 
@@ -687,26 +667,31 @@ pub fn rebalance(deps: DepsMut, env: Env) -> StdResult<Response<TerraMsgWrapper>
 
     let new_redelegations = compute_redelegations_for_rebalancing(&delegations);
 
-    let redelegate_submsgs = new_redelegations
-        .iter()
-        .map(|rd| SubMsg::reply_on_success(rd.to_cosmos_msg(), 2))
-        .collect::<Vec<_>>();
+    let redelegate_msgs = new_redelegations.iter().map(|rd| rd.to_cosmos_msg()).collect::<Vec<_>>();
 
     let amount: u128 = new_redelegations.iter().map(|rd| rd.amount).sum();
 
     let event = Event::new("erishub/rebalanced").add_attribute("uluna_moved", amount.to_string());
 
+    let check_msg: Option<CosmosMsg> = if !redelegate_msgs.is_empty() {
+        // only check coins if a redelegation is happening
+        Some(check_received_coin_msg(&deps, &env, None)?)
+    } else {
+        None
+    };
+
     Ok(Response::new()
-        .add_submessages(redelegate_submsgs)
+        .add_messages(redelegate_msgs)
+        .add_optional_message(check_msg)
         .add_event(event)
         .add_attribute("action", "erishub/rebalance"))
 }
 
 pub fn add_validator(
-    deps: DepsMut,
+    deps: DepsMut<TerraQueryWrapper>,
     sender: Addr,
     validator: String,
-) -> StdResult<Response<TerraMsgWrapper>> {
+) -> StdResult<Response> {
     let state = State::default();
 
     state.assert_owner(deps.storage, &sender)?;
@@ -725,11 +710,11 @@ pub fn add_validator(
 }
 
 pub fn remove_validator(
-    deps: DepsMut,
+    deps: DepsMut<TerraQueryWrapper>,
     env: Env,
     sender: Addr,
     validator: String,
-) -> StdResult<Response<TerraMsgWrapper>> {
+) -> StdResult<Response> {
     let state = State::default();
 
     state.assert_owner(deps.storage, &sender)?;
@@ -746,24 +731,29 @@ pub fn remove_validator(
     let delegation_to_remove = query_delegation(&deps.querier, &validator, &env.contract.address)?;
     let new_redelegations = compute_redelegations_for_removal(&delegation_to_remove, &delegations);
 
-    let redelegate_submsgs = new_redelegations
-        .iter()
-        .map(|d| SubMsg::reply_on_success(d.to_cosmos_msg(), 2))
-        .collect::<Vec<_>>();
+    let redelegate_msgs = new_redelegations.iter().map(|d| d.to_cosmos_msg()).collect::<Vec<_>>();
 
     let event = Event::new("erishub/validator_removed").add_attribute("validator", validator);
 
+    let check_msg = if !redelegate_msgs.is_empty() {
+        // only check coins if a redelegation is happening
+        Some(check_received_coin_msg(&deps, &env, None)?)
+    } else {
+        None
+    };
+
     Ok(Response::new()
-        .add_submessages(redelegate_submsgs)
+        .add_messages(redelegate_msgs)
+        .add_optional_message(check_msg)
         .add_event(event)
         .add_attribute("action", "erishub/remove_validator"))
 }
 
 pub fn transfer_ownership(
-    deps: DepsMut,
+    deps: DepsMut<TerraQueryWrapper>,
     sender: Addr,
     new_owner: String,
-) -> StdResult<Response<TerraMsgWrapper>> {
+) -> StdResult<Response> {
     let state = State::default();
 
     state.assert_owner(deps.storage, &sender)?;
@@ -772,7 +762,7 @@ pub fn transfer_ownership(
     Ok(Response::new().add_attribute("action", "erishub/transfer_ownership"))
 }
 
-pub fn accept_ownership(deps: DepsMut, sender: Addr) -> StdResult<Response<TerraMsgWrapper>> {
+pub fn accept_ownership(deps: DepsMut<TerraQueryWrapper>, sender: Addr) -> StdResult<Response> {
     let state = State::default();
 
     let previous_owner = state.owner.load(deps.storage)?;
@@ -793,12 +783,12 @@ pub fn accept_ownership(deps: DepsMut, sender: Addr) -> StdResult<Response<Terra
 }
 
 pub fn update_config(
-    deps: DepsMut,
+    deps: DepsMut<TerraQueryWrapper>,
     sender: Addr,
     protocol_fee_contract: Option<String>,
     protocol_reward_fee: Option<Decimal>,
     swap_config: Option<Vec<SwapConfig>>,
-) -> StdResult<Response<TerraMsgWrapper>> {
+) -> StdResult<Response> {
     let state = State::default();
 
     state.assert_owner(deps.storage, &sender)?;

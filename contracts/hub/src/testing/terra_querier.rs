@@ -1,9 +1,7 @@
 use std::{collections::HashMap, str::FromStr};
 
-use cosmwasm_std::{to_binary, Decimal, QuerierResult, SystemError, SystemResult, Uint128};
-use terra_cosmwasm::{
-    ExchangeRateItem, ExchangeRatesResponse, TaxCapResponse, TaxRateResponse, TerraQuery,
-};
+use cosmwasm_std::{to_binary, Decimal, QuerierResult, Uint128};
+use eris::terra::{TaxCapResponse, TaxRateResponse, TerraQueryWrapper};
 
 use super::helpers::err_unsupported_query;
 
@@ -29,40 +27,40 @@ impl TerraQuerier {
     ///   if the query only contains the unknown denom
     ///
     /// We emulate this behaviour in our mock querier.
-    pub fn handle_query(&self, query: &TerraQuery) -> QuerierResult {
-        if let TerraQuery::ExchangeRates {
-            base_denom,
-            quote_denoms,
-        } = query
-        {
-            let exchange_rates: Vec<ExchangeRateItem> = quote_denoms
-                .iter()
-                .filter_map(|quote_denom| {
-                    self.exchange_rates.get(&(base_denom.clone(), quote_denom.clone())).map(
-                        |rate| ExchangeRateItem {
-                            quote_denom: quote_denom.clone(),
-                            exchange_rate: *rate,
-                        },
-                    )
-                })
-                .collect();
+    pub fn handle_query(&self, query: &TerraQueryWrapper) -> QuerierResult {
+        // if let TerraQueryWrapper::ExchangeRates {
+        //     base_denom,
+        //     quote_denoms,
+        // } = query
+        // {
+        //     let exchange_rates: Vec<ExchangeRateItem> = quote_denoms
+        //         .iter()
+        //         .filter_map(|quote_denom| {
+        //             self.exchange_rates.get(&(base_denom.clone(), quote_denom.clone())).map(
+        //                 |rate| ExchangeRateItem {
+        //                     quote_denom: quote_denom.clone(),
+        //                     exchange_rate: *rate,
+        //                 },
+        //             )
+        //         })
+        //         .collect();
 
-            if exchange_rates.is_empty() {
-                return SystemResult::Err(SystemError::InvalidRequest {
-                    error: "[mock] quote_denoms are all unknown".to_string(),
-                    request: Default::default(),
-                });
-            }
+        //     if exchange_rates.is_empty() {
+        //         return SystemResult::Err(SystemError::InvalidRequest {
+        //             error: "[mock] quote_denoms are all unknown".to_string(),
+        //             request: Default::default(),
+        //         });
+        //     }
 
-            return Ok(to_binary(&ExchangeRatesResponse {
-                base_denom: base_denom.into(),
-                exchange_rates,
-            })
-            .into())
-            .into();
-        }
+        //     return Ok(to_binary(&ExchangeRatesResponse {
+        //         base_denom: base_denom.into(),
+        //         exchange_rates,
+        //     })
+        //     .into())
+        //     .into();
+        // }
 
-        if let TerraQuery::TaxCap {
+        if let TerraQueryWrapper::TaxCap {
             denom: _,
         } = query
         {
@@ -73,7 +71,7 @@ impl TerraQuerier {
             .into();
         }
 
-        if let TerraQuery::TaxRate {} = query {
+        if let TerraQueryWrapper::TaxRate {} = query {
             return Ok(to_binary(&TaxRateResponse {
                 rate: Decimal::from_str("0.01").unwrap(),
             })

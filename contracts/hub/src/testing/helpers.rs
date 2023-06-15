@@ -1,8 +1,11 @@
+use std::marker::PhantomData;
+
 use cosmwasm_std::testing::{mock_env, MockApi, MockStorage, MOCK_CONTRACT_ADDR};
 use cosmwasm_std::{
     from_binary, Addr, BlockInfo, ContractInfo, Deps, Env, OwnedDeps, QuerierResult, SystemError,
     SystemResult, Timestamp,
 };
+use eris::terra::TerraQueryWrapper;
 use serde::de::DeserializeOwned;
 
 use eris::hub::QueryMsg;
@@ -18,11 +21,13 @@ pub(super) fn err_unsupported_query<T: std::fmt::Debug>(request: T) -> QuerierRe
     })
 }
 
-pub(super) fn mock_dependencies() -> OwnedDeps<MockStorage, MockApi, CustomQuerier> {
+pub(super) fn mock_dependencies(
+) -> OwnedDeps<MockStorage, MockApi, CustomQuerier, TerraQueryWrapper> {
     OwnedDeps {
         storage: MockStorage::default(),
         api: MockApi::default(),
         querier: CustomQuerier::default(),
+        custom_query_type: PhantomData::<TerraQueryWrapper>,
     }
 }
 
@@ -36,15 +41,16 @@ pub(super) fn mock_env_at_timestamp(timestamp: u64) -> Env {
         contract: ContractInfo {
             address: Addr::unchecked(MOCK_CONTRACT_ADDR),
         },
+        transaction: None,
     }
 }
 
-pub(super) fn query_helper<T: DeserializeOwned>(deps: Deps, msg: QueryMsg) -> T {
+pub(super) fn query_helper<T: DeserializeOwned>(deps: Deps<TerraQueryWrapper>, msg: QueryMsg) -> T {
     from_binary(&query(deps, mock_env(), msg).unwrap()).unwrap()
 }
 
 pub(super) fn query_helper_env<T: DeserializeOwned>(
-    deps: Deps,
+    deps: Deps<TerraQueryWrapper>,
     msg: QueryMsg,
     timestamp: u64,
 ) -> T {

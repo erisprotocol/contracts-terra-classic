@@ -1,10 +1,11 @@
-use cosmwasm_std::{Decimal, Deps, Env, Order, StdResult, Uint128};
-use cw_storage_plus::{Bound, U64Key};
+use cosmwasm_std::{Addr, Decimal, Deps, Env, Order, StdResult, Uint128};
+use cw_storage_plus::Bound;
 
 use eris::hub::{
     Batch, ConfigResponse, PendingBatch, StateResponse, UnbondRequestsByBatchResponseItem,
     UnbondRequestsByUserResponseItem, UnbondRequestsByUserResponseItemDetails,
 };
+use eris::terra::TerraQueryWrapper;
 
 use crate::helpers::{query_cw20_total_supply, query_delegations};
 use crate::state::State;
@@ -12,7 +13,7 @@ use crate::state::State;
 const MAX_LIMIT: u32 = 30;
 const DEFAULT_LIMIT: u32 = 10;
 
-pub fn config(deps: Deps) -> StdResult<ConfigResponse> {
+pub fn config(deps: Deps<TerraQueryWrapper>) -> StdResult<ConfigResponse> {
     let state = State::default();
     Ok(ConfigResponse {
         owner: state.owner.load(deps.storage)?.into(),
@@ -26,7 +27,7 @@ pub fn config(deps: Deps) -> StdResult<ConfigResponse> {
     })
 }
 
-pub fn state(deps: Deps, env: Env) -> StdResult<StateResponse> {
+pub fn state(deps: Deps<TerraQueryWrapper>, env: Env) -> StdResult<StateResponse> {
     let state = State::default();
 
     let stake_token = state.stake_token.load(deps.storage)?;
@@ -72,25 +73,25 @@ pub fn state(deps: Deps, env: Env) -> StdResult<StateResponse> {
     })
 }
 
-pub fn pending_batch(deps: Deps) -> StdResult<PendingBatch> {
+pub fn pending_batch(deps: Deps<TerraQueryWrapper>) -> StdResult<PendingBatch> {
     let state = State::default();
     state.pending_batch.load(deps.storage)
 }
 
-pub fn previous_batch(deps: Deps, id: u64) -> StdResult<Batch> {
+pub fn previous_batch(deps: Deps<TerraQueryWrapper>, id: u64) -> StdResult<Batch> {
     let state = State::default();
-    state.previous_batches.load(deps.storage, id.into())
+    state.previous_batches.load(deps.storage, id)
 }
 
 pub fn previous_batches(
-    deps: Deps,
+    deps: Deps<TerraQueryWrapper>,
     start_after: Option<u64>,
     limit: Option<u32>,
 ) -> StdResult<Vec<Batch>> {
     let state = State::default();
 
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
-    let start = start_after.map(|id| Bound::exclusive(U64Key::from(id)));
+    let start = start_after.map(Bound::exclusive);
 
     state
         .previous_batches
@@ -104,7 +105,7 @@ pub fn previous_batches(
 }
 
 pub fn unbond_requests_by_batch(
-    deps: Deps,
+    deps: Deps<TerraQueryWrapper>,
     id: u64,
     start_after: Option<String>,
     limit: Option<u32>,
@@ -113,14 +114,18 @@ pub fn unbond_requests_by_batch(
 
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
 
-    let start = match start_after {
-        None => None,
-        Some(addr_str) => Some(Bound::exclusive(deps.api.addr_validate(&addr_str)?.into_string())),
-    };
+    let mut start: Option<Bound<&Addr>> = None;
+    let addr: Addr;
+    if let Some(start_after) = start_after {
+        if let Ok(start_after_addr) = deps.api.addr_validate(&start_after) {
+            addr = start_after_addr;
+            start = Some(Bound::exclusive(&addr));
+        }
+    }
 
     state
         .unbond_requests
-        .prefix(id.into())
+        .prefix(id)
         .range(deps.storage, start, None, Order::Ascending)
         .take(limit)
         .map(|item| {
@@ -131,7 +136,7 @@ pub fn unbond_requests_by_batch(
 }
 
 pub fn unbond_requests_by_user(
-    deps: Deps,
+    deps: Deps<TerraQueryWrapper>,
     user: String,
     start_after: Option<u64>,
     limit: Option<u32>,
@@ -163,7 +168,7 @@ pub fn unbond_requests_by_user(
 }
 
 pub fn unbond_requests_by_user_details(
-    deps: Deps,
+    deps: Deps<TerraQueryWrapper>,
     user: String,
     start_after: Option<u64>,
     limit: Option<u32>,
@@ -197,7 +202,7 @@ pub fn unbond_requests_by_user_details(
                 state_msg = "PENDING".to_string();
                 previous = None;
             } else {
-                let batch = state.previous_batches.load(deps.storage, v.id.into())?;
+                let batch = state.previous_batches.load(deps.storage, v.id)?;
                 previous = Some(batch.clone());
                 let current_time = env.block.time.seconds();
                 state_msg = if batch.est_unbond_end_time < current_time {
