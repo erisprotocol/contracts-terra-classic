@@ -9,7 +9,7 @@ use cosmwasm_std::{
 };
 use cw20::Cw20ExecuteMsg;
 
-use crate::terra::{TaxCapResponse, TaxRateResponse, TerraQueryWrapper};
+use crate::terra::{TaxCapResponse, TaxRateResponse, TerraQuery, TerraQueryWrapper, TerraRoute};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
@@ -67,11 +67,17 @@ impl Asset {
         } = &self.info
         {
             let tax_rate_response: TaxRateResponse =
-                querier.query(&QueryRequest::Custom(TerraQueryWrapper::TaxRate {}))?;
+                querier.query(&QueryRequest::Custom(TerraQueryWrapper {
+                    route: TerraRoute::Treasury,
+                    query_data: TerraQuery::TaxRate {},
+                }))?;
 
             let tax_cap_response: TaxCapResponse =
-                querier.query(&QueryRequest::Custom(TerraQueryWrapper::TaxCap {
-                    denom: denom.to_string(),
+                querier.query(&QueryRequest::Custom(TerraQueryWrapper {
+                    route: TerraRoute::Treasury,
+                    query_data: TerraQuery::TaxCap {
+                        denom: denom.to_string(),
+                    },
                 }))?;
 
             let tax_rate: Decimal = tax_rate_response.rate;

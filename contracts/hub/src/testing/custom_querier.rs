@@ -101,7 +101,7 @@ impl CustomQuerier {
                 err_unsupported_query(msg)
             },
 
-            QueryRequest::Custom(query) => self.terra_querier.handle_query(query),
+            QueryRequest::Custom(query) => self.terra_querier.handle_query(&query.query_data),
 
             QueryRequest::Bank(query) => self.bank_querier.query(query),
 

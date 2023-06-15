@@ -1,7 +1,7 @@
 use std::{collections::HashMap, str::FromStr};
 
 use cosmwasm_std::{to_binary, Decimal, QuerierResult, Uint128};
-use eris::terra::{TaxCapResponse, TaxRateResponse, TerraQueryWrapper};
+use eris::terra::{TaxCapResponse, TaxRateResponse, TerraQuery};
 
 use super::helpers::err_unsupported_query;
 
@@ -27,7 +27,7 @@ impl TerraQuerier {
     ///   if the query only contains the unknown denom
     ///
     /// We emulate this behaviour in our mock querier.
-    pub fn handle_query(&self, query: &TerraQueryWrapper) -> QuerierResult {
+    pub fn handle_query(&self, query: &TerraQuery) -> QuerierResult {
         // if let TerraQueryWrapper::ExchangeRates {
         //     base_denom,
         //     quote_denoms,
@@ -60,7 +60,7 @@ impl TerraQuerier {
         //     .into();
         // }
 
-        if let TerraQueryWrapper::TaxCap {
+        if let TerraQuery::TaxCap {
             denom: _,
         } = query
         {
@@ -71,7 +71,7 @@ impl TerraQuerier {
             .into();
         }
 
-        if let TerraQueryWrapper::TaxRate {} = query {
+        if let TerraQuery::TaxRate {} = query {
             return Ok(to_binary(&TaxRateResponse {
                 rate: Decimal::from_str("0.01").unwrap(),
             })

@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
-pub enum TerraQueryWrapper {
+pub enum TerraQuery {
     Swap {
         offer_coin: Coin,
         ask_denom: String,
@@ -29,6 +29,23 @@ pub struct TaxRateResponse {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct TaxCapResponse {
     pub cap: Uint128,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub struct TerraQueryWrapper {
+    pub route: TerraRoute,
+    pub query_data: TerraQuery,
+}
+
+/// TerraRoute is enum type to represent terra query route path
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum TerraRoute {
+    Market,
+    Treasury,
+    Oracle,
+    Wasm,
 }
 
 impl CustomQuery for TerraQueryWrapper {}
