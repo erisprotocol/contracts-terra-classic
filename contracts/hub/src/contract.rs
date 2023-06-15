@@ -195,6 +195,7 @@ pub fn migrate(
             "1.2.0" => {},
             "1.2.1" => {},
             "1.2.2" => {},
+            "1.3.0" => {},
             _ => return Err(StdError::generic_err("Error during migration")),
         },
         _ => return Err(StdError::generic_err("Error during migration")),
