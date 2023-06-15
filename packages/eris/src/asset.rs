@@ -4,8 +4,8 @@ use serde::{Deserialize, Serialize};
 use std::fmt;
 
 use cosmwasm_std::{
-    to_binary, Addr, Api, BankMsg, Coin, CosmosMsg, Decimal, MessageInfo, QuerierWrapper,
-    QueryRequest, StdError, StdResult, Uint128, WasmMsg,
+    to_binary, Addr, Api, BankMsg, Coin, CosmosMsg, Decimal, MessageInfo, QuerierWrapper, StdError,
+    StdResult, Uint128, WasmMsg,
 };
 use cw20::Cw20ExecuteMsg;
 
@@ -66,19 +66,23 @@ impl Asset {
             denom,
         } = &self.info
         {
-            let tax_rate_response: TaxRateResponse =
-                querier.query(&QueryRequest::Custom(TerraQueryWrapper {
+            let tax_rate_response: TaxRateResponse = querier.query(
+                &TerraQueryWrapper {
                     route: TerraRoute::Treasury,
                     query_data: TerraQuery::TaxRate {},
-                }))?;
+                }
+                .into(),
+            )?;
 
-            let tax_cap_response: TaxCapResponse =
-                querier.query(&QueryRequest::Custom(TerraQueryWrapper {
+            let tax_cap_response: TaxCapResponse = querier.query(
+                &TerraQueryWrapper {
                     route: TerraRoute::Treasury,
                     query_data: TerraQuery::TaxCap {
                         denom: denom.to_string(),
                     },
-                }))?;
+                }
+                .into(),
+            )?;
 
             let tax_rate: Decimal = tax_rate_response.rate;
             let tax_cap: Uint128 = tax_cap_response.cap;
