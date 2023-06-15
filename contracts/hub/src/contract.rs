@@ -183,24 +183,11 @@ pub fn migrate(
     _msg: MigrateMsg,
 ) -> StdResult<Response> {
     let contract_version = get_contract_version(deps.storage)?;
-
-    match contract_version.contract.as_ref() {
-        "eris-staking-hub" => match contract_version.version.as_ref() {
-            "1.1.0" => {
-                let state = State::default();
-                state.swap_config.save(deps.storage, &vec![])?;
-            },
-            "1.1.1" => {},
-            "1.1.2" => {},
-            "1.2.0" => {},
-            "1.2.1" => {},
-            "1.2.2" => {},
-            "1.3.0" => {},
-            _ => return Err(StdError::generic_err("Error during migration")),
-        },
-        _ => return Err(StdError::generic_err("Error during migration")),
-    }
-
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
-    Ok(Response::new())
+
+    Ok(Response::new()
+        .add_attribute("previous_contract_name", &contract_version.contract)
+        .add_attribute("previous_contract_version", &contract_version.version)
+        .add_attribute("new_contract_name", CONTRACT_NAME)
+        .add_attribute("new_contract_version", CONTRACT_VERSION))
 }
