@@ -1,6 +1,6 @@
 [package]
 name = "eris-staking-hub-classic"
-version = "1.2.3"
+version = "1.3.0"
 authors = ["devs <devs@erisprotocol.com>"]
 edition = "2018"
 license = "GPL-3.0-or-later"

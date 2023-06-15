@@ -318,7 +318,7 @@ dependencies = [
 
 [[package]]
 name = "eris"
-version = "1.2.3"
+version = "1.3.0"
 dependencies = [
  "cosmwasm-std",
  "cw20",
@@ -337,7 +337,7 @@ dependencies = [
 
 [[package]]
 name = "eris-staking-hub-classic"
-version = "1.2.3"
+version = "1.3.0"
 dependencies = [
  "cosmwasm-std",
  "cw-storage-plus",
