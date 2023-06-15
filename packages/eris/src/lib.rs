@@ -1,6 +1,5 @@
 pub mod asset;
 pub mod hub;
-pub mod terra;
 
 mod extensions {
     use cosmwasm_std::{

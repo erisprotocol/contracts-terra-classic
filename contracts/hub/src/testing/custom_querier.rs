@@ -1,12 +1,12 @@
 use std::collections::HashMap;
 
+use classic_bindings::TerraQuery;
 use cosmwasm_std::testing::{BankQuerier, StakingQuerier, MOCK_CONTRACT_ADDR};
 use cosmwasm_std::{
     from_binary, from_slice, Addr, Coin, FullDelegation, Querier, QuerierResult, QueryRequest,
     SystemError, WasmQuery,
 };
 use cw20::Cw20QueryMsg;
-use eris::terra::TerraQueryWrapper;
 
 use crate::types::Delegation;
 
@@ -24,7 +24,7 @@ pub(super) struct CustomQuerier {
 
 impl Querier for CustomQuerier {
     fn raw_query(&self, bin_request: &[u8]) -> QuerierResult {
-        let request: QueryRequest<TerraQueryWrapper> = match from_slice(bin_request) {
+        let request: QueryRequest<TerraQuery> = match from_slice(bin_request) {
             Ok(v) => v,
             Err(e) => {
                 return Err(SystemError::InvalidRequest {
@@ -88,7 +88,7 @@ impl CustomQuerier {
         self.staking_querier = StakingQuerier::new("uluna", &[], &fds);
     }
 
-    pub fn handle_query(&self, request: &QueryRequest<TerraQueryWrapper>) -> QuerierResult {
+    pub fn handle_query(&self, request: &QueryRequest<TerraQuery>) -> QuerierResult {
         match request {
             QueryRequest::Wasm(WasmQuery::Smart {
                 contract_addr,
@@ -101,7 +101,7 @@ impl CustomQuerier {
                 err_unsupported_query(msg)
             },
 
-            QueryRequest::Custom(query) => self.terra_querier.handle_query(&query.query_data),
+            QueryRequest::Custom(query) => self.terra_querier.handle_query(query),
 
             QueryRequest::Bank(query) => self.bank_querier.query(query),
 

@@ -1,19 +1,17 @@
+use crate::helpers::{query_cw20_total_supply, query_delegations};
+use crate::state::State;
+use classic_bindings::TerraQuery;
 use cosmwasm_std::{Addr, Decimal, Deps, Env, Order, StdResult, Uint128};
 use cw_storage_plus::Bound;
-
 use eris::hub::{
     Batch, ConfigResponse, PendingBatch, StateResponse, UnbondRequestsByBatchResponseItem,
     UnbondRequestsByUserResponseItem, UnbondRequestsByUserResponseItemDetails,
 };
-use eris::terra::TerraQueryWrapper;
-
-use crate::helpers::{query_cw20_total_supply, query_delegations};
-use crate::state::State;
 
 const MAX_LIMIT: u32 = 30;
 const DEFAULT_LIMIT: u32 = 10;
 
-pub fn config(deps: Deps<TerraQueryWrapper>) -> StdResult<ConfigResponse> {
+pub fn config(deps: Deps<TerraQuery>) -> StdResult<ConfigResponse> {
     let state = State::default();
     Ok(ConfigResponse {
         owner: state.owner.load(deps.storage)?.into(),
@@ -27,7 +25,7 @@ pub fn config(deps: Deps<TerraQueryWrapper>) -> StdResult<ConfigResponse> {
     })
 }
 
-pub fn state(deps: Deps<TerraQueryWrapper>, env: Env) -> StdResult<StateResponse> {
+pub fn state(deps: Deps<TerraQuery>, env: Env) -> StdResult<StateResponse> {
     let state = State::default();
 
     let stake_token = state.stake_token.load(deps.storage)?;
@@ -73,18 +71,18 @@ pub fn state(deps: Deps<TerraQueryWrapper>, env: Env) -> StdResult<StateResponse
     })
 }
 
-pub fn pending_batch(deps: Deps<TerraQueryWrapper>) -> StdResult<PendingBatch> {
+pub fn pending_batch(deps: Deps<TerraQuery>) -> StdResult<PendingBatch> {
     let state = State::default();
     state.pending_batch.load(deps.storage)
 }
 
-pub fn previous_batch(deps: Deps<TerraQueryWrapper>, id: u64) -> StdResult<Batch> {
+pub fn previous_batch(deps: Deps<TerraQuery>, id: u64) -> StdResult<Batch> {
     let state = State::default();
     state.previous_batches.load(deps.storage, id)
 }
 
 pub fn previous_batches(
-    deps: Deps<TerraQueryWrapper>,
+    deps: Deps<TerraQuery>,
     start_after: Option<u64>,
     limit: Option<u32>,
 ) -> StdResult<Vec<Batch>> {
@@ -105,7 +103,7 @@ pub fn previous_batches(
 }
 
 pub fn unbond_requests_by_batch(
-    deps: Deps<TerraQueryWrapper>,
+    deps: Deps<TerraQuery>,
     id: u64,
     start_after: Option<String>,
     limit: Option<u32>,
@@ -136,7 +134,7 @@ pub fn unbond_requests_by_batch(
 }
 
 pub fn unbond_requests_by_user(
-    deps: Deps<TerraQueryWrapper>,
+    deps: Deps<TerraQuery>,
     user: String,
     start_after: Option<u64>,
     limit: Option<u32>,
@@ -168,7 +166,7 @@ pub fn unbond_requests_by_user(
 }
 
 pub fn unbond_requests_by_user_details(
-    deps: Deps<TerraQueryWrapper>,
+    deps: Deps<TerraQuery>,
     user: String,
     start_after: Option<u64>,
     limit: Option<u32>,

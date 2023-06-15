@@ -1,12 +1,11 @@
-use std::{collections::HashSet, str::FromStr};
-
+use crate::types::Delegation;
+use classic_bindings::TerraQuery;
 use cosmwasm_std::{
     Addr, Api, Coin, QuerierWrapper, Reply, StdError, StdResult, SubMsgResponse, Uint128,
 };
 use cw20::{Cw20QueryMsg, TokenInfoResponse};
-use eris::{asset::addr_validate_to_lower, hub::SwapConfig, terra::TerraQueryWrapper};
-
-use crate::types::Delegation;
+use eris::{asset::addr_validate_to_lower, hub::SwapConfig};
+use std::{collections::HashSet, str::FromStr};
 
 /// Unwrap a `Reply` object to extract the response
 pub(crate) fn unwrap_reply(reply: Reply) -> StdResult<SubMsgResponse> {
@@ -15,7 +14,7 @@ pub(crate) fn unwrap_reply(reply: Reply) -> StdResult<SubMsgResponse> {
 
 /// Query the total supply of a CW20 token
 pub(crate) fn query_cw20_total_supply(
-    querier: &QuerierWrapper<TerraQueryWrapper>,
+    querier: &QuerierWrapper<TerraQuery>,
     token_addr: &Addr,
 ) -> StdResult<Uint128> {
     let token_info: TokenInfoResponse =
@@ -25,7 +24,7 @@ pub(crate) fn query_cw20_total_supply(
 
 /// Query the amounts of Luna a staker is delegating to a specific validator
 pub(crate) fn query_delegation(
-    querier: &QuerierWrapper<TerraQueryWrapper>,
+    querier: &QuerierWrapper<TerraQuery>,
     validator: &str,
     delegator_addr: &Addr,
 ) -> StdResult<Delegation> {
@@ -40,7 +39,7 @@ pub(crate) fn query_delegation(
 
 /// Query the amounts of Luna a staker is delegating to each of the validators specified
 pub(crate) fn query_delegations(
-    querier: &QuerierWrapper<TerraQueryWrapper>,
+    querier: &QuerierWrapper<TerraQuery>,
     validators: &[String],
     delegator_addr: &Addr,
 ) -> StdResult<Vec<Delegation>> {

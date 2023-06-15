@@ -11,6 +11,7 @@ use cw20::{Cw20ExecuteMsg, MinterResponse};
 use cw20_base::msg::InstantiateMsg as Cw20InstantiateMsg;
 use eris::DecimalCheckedOps;
 
+use classic_bindings::TerraQuery;
 use eris::asset::{Asset, PairExecuteMsg};
 use eris::hub::{
     Batch, CallbackMsg, ConfigResponse, ExecuteMsg, FeeConfig, InstantiateMsg, PendingBatch,
@@ -18,7 +19,7 @@ use eris::hub::{
     UnbondRequestsByBatchResponseItem, UnbondRequestsByUserResponseItem,
     UnbondRequestsByUserResponseItemDetails,
 };
-use eris::terra::TerraQueryWrapper;
+
 use serde::de::DeserializeOwned;
 
 use crate::constants::CONTRACT_DENOM;
@@ -40,7 +41,7 @@ pub const STAKE_DENOM: &str = "stake_token";
 // Test setup
 //--------------------------------------------------------------------------------------------------
 
-fn setup_test() -> OwnedDeps<MockStorage, MockApi, CustomQuerier, TerraQueryWrapper> {
+fn setup_test() -> OwnedDeps<MockStorage, MockApi, CustomQuerier, TerraQuery> {
     let mut deps = mock_dependencies();
 
     let res = instantiate(

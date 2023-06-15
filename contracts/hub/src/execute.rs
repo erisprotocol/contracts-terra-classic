@@ -1,3 +1,4 @@
+use classic_bindings::TerraQuery;
 use cosmwasm_std::{
     to_binary, Addr, Coin, CosmosMsg, Decimal, DepsMut, DistributionMsg, Env, Event, Order,
     Response, StdError, StdResult, SubMsg, SubMsgResponse, Uint128, WasmMsg,
@@ -6,7 +7,6 @@ use cw2::set_contract_version;
 use cw20::{Cw20ExecuteMsg, MinterResponse};
 use cw20_base::msg::InstantiateMsg as Cw20InstantiateMsg;
 use eris::asset::{Asset, AssetInfo};
-use eris::terra::TerraQueryWrapper;
 use eris::{CustomResponse, DecimalCheckedOps};
 
 use eris::hub::{
@@ -32,7 +32,7 @@ type ContractResult = StdResult<Response>;
 //--------------------------------------------------------------------------------------------------
 
 pub fn instantiate(
-    deps: DepsMut<TerraQueryWrapper>,
+    deps: DepsMut<TerraQuery>,
     env: Env,
     msg: InstantiateMsg,
 ) -> StdResult<Response> {
@@ -96,7 +96,7 @@ pub fn instantiate(
 }
 
 pub fn register_stake_token(
-    deps: DepsMut<TerraQueryWrapper>,
+    deps: DepsMut<TerraQuery>,
     response: SubMsgResponse,
 ) -> StdResult<Response> {
     let state = State::default();
@@ -137,7 +137,7 @@ pub fn register_stake_token(
 /// (e.g. when a single user makes a very big deposit), anyone can invoke `ExecuteMsg::Rebalance`
 /// to balance the delegations.
 pub fn bond(
-    deps: DepsMut<TerraQueryWrapper>,
+    deps: DepsMut<TerraQuery>,
     env: Env,
     receiver: Addr,
     uluna_to_bond: Uint128,
@@ -201,7 +201,7 @@ pub fn bond(
     Ok(response.add_message(check_received_coin_msg(&deps, &env, Some(uluna_to_bond))?))
 }
 
-pub fn harvest(deps: DepsMut<TerraQueryWrapper>, env: Env) -> StdResult<Response> {
+pub fn harvest(deps: DepsMut<TerraQuery>, env: Env) -> StdResult<Response> {
     let withdraw_msgs = deps
         .querier
         .query_all_delegations(&env.contract.address)?
@@ -225,7 +225,7 @@ pub fn harvest(deps: DepsMut<TerraQueryWrapper>, env: Env) -> StdResult<Response
         .add_attribute("action", "erishub/harvest"))
 }
 
-pub fn swap(deps: DepsMut<TerraQueryWrapper>, env: Env) -> StdResult<Response> {
+pub fn swap(deps: DepsMut<TerraQuery>, env: Env) -> StdResult<Response> {
     let state = State::default();
     let swap_config = state.swap_config.load(deps.storage)?;
 
@@ -260,7 +260,7 @@ pub fn swap(deps: DepsMut<TerraQueryWrapper>, env: Env) -> StdResult<Response> {
 /// execution.
 /// 2. Same as with `bond`, in the latest implementation we only delegate staking rewards with the
 /// validator that has the smallest delegation amount.
-pub fn reinvest(deps: DepsMut<TerraQueryWrapper>, env: Env) -> StdResult<Response> {
+pub fn reinvest(deps: DepsMut<TerraQuery>, env: Env) -> StdResult<Response> {
     let state = State::default();
     let validators = state.validators.load(deps.storage)?;
     let mut unlocked_coins = state.unlocked_coins.load(deps.storage)?;
@@ -325,7 +325,7 @@ pub fn reinvest(deps: DepsMut<TerraQueryWrapper>, env: Env) -> StdResult<Respons
 
 /// This callback is used to take a current snapshot of the balance and add the received balance to the unlocked_coins state after the execution
 fn check_received_coin_msg(
-    deps: &DepsMut<TerraQueryWrapper>,
+    deps: &DepsMut<TerraQuery>,
     env: &Env,
     // offset to account for funds being sent that should be ignored
     negative_offset: Option<Uint128>,
@@ -348,7 +348,7 @@ fn check_received_coin_msg(
 }
 
 pub fn callback_received_coin(
-    deps: DepsMut<TerraQueryWrapper>,
+    deps: DepsMut<TerraQuery>,
     env: Env,
     snapshot: Coin,
 ) -> ContractResult {
@@ -380,7 +380,7 @@ pub fn callback_received_coin(
 //--------------------------------------------------------------------------------------------------
 
 pub fn queue_unbond(
-    deps: DepsMut<TerraQueryWrapper>,
+    deps: DepsMut<TerraQuery>,
     env: Env,
     receiver: Addr,
     ustake_to_burn: Uint128,
@@ -430,7 +430,7 @@ pub fn queue_unbond(
         .add_attribute("action", "erishub/queue_unbond"))
 }
 
-pub fn submit_batch(deps: DepsMut<TerraQueryWrapper>, env: Env) -> StdResult<Response> {
+pub fn submit_batch(deps: DepsMut<TerraQuery>, env: Env) -> StdResult<Response> {
     let state = State::default();
     let stake_token = state.stake_token.load(deps.storage)?;
     let validators = state.validators.load(deps.storage)?;
@@ -508,7 +508,7 @@ pub fn submit_batch(deps: DepsMut<TerraQueryWrapper>, env: Env) -> StdResult<Res
         .add_attribute("action", "erishub/unbond"))
 }
 
-pub fn reconcile(deps: DepsMut<TerraQueryWrapper>, env: Env) -> StdResult<Response> {
+pub fn reconcile(deps: DepsMut<TerraQuery>, env: Env) -> StdResult<Response> {
     let state = State::default();
     let current_time = env.block.time.seconds();
 
@@ -572,7 +572,7 @@ pub fn reconcile(deps: DepsMut<TerraQueryWrapper>, env: Env) -> StdResult<Respon
 }
 
 pub fn withdraw_unbonded(
-    deps: DepsMut<TerraQueryWrapper>,
+    deps: DepsMut<TerraQuery>,
     env: Env,
     user: Addr,
     receiver: Addr,
@@ -659,7 +659,7 @@ pub fn withdraw_unbonded(
 // Ownership and management logics
 //--------------------------------------------------------------------------------------------------
 
-pub fn rebalance(deps: DepsMut<TerraQueryWrapper>, env: Env) -> StdResult<Response> {
+pub fn rebalance(deps: DepsMut<TerraQuery>, env: Env) -> StdResult<Response> {
     let state = State::default();
     let validators = state.validators.load(deps.storage)?;
 
@@ -688,7 +688,7 @@ pub fn rebalance(deps: DepsMut<TerraQueryWrapper>, env: Env) -> StdResult<Respon
 }
 
 pub fn add_validator(
-    deps: DepsMut<TerraQueryWrapper>,
+    deps: DepsMut<TerraQuery>,
     sender: Addr,
     validator: String,
 ) -> StdResult<Response> {
@@ -710,7 +710,7 @@ pub fn add_validator(
 }
 
 pub fn remove_validator(
-    deps: DepsMut<TerraQueryWrapper>,
+    deps: DepsMut<TerraQuery>,
     env: Env,
     sender: Addr,
     validator: String,
@@ -750,7 +750,7 @@ pub fn remove_validator(
 }
 
 pub fn transfer_ownership(
-    deps: DepsMut<TerraQueryWrapper>,
+    deps: DepsMut<TerraQuery>,
     sender: Addr,
     new_owner: String,
 ) -> StdResult<Response> {
@@ -762,7 +762,7 @@ pub fn transfer_ownership(
     Ok(Response::new().add_attribute("action", "erishub/transfer_ownership"))
 }
 
-pub fn accept_ownership(deps: DepsMut<TerraQueryWrapper>, sender: Addr) -> StdResult<Response> {
+pub fn accept_ownership(deps: DepsMut<TerraQuery>, sender: Addr) -> StdResult<Response> {
     let state = State::default();
 
     let previous_owner = state.owner.load(deps.storage)?;
@@ -783,7 +783,7 @@ pub fn accept_ownership(deps: DepsMut<TerraQueryWrapper>, sender: Addr) -> StdRe
 }
 
 pub fn update_config(
-    deps: DepsMut<TerraQueryWrapper>,
+    deps: DepsMut<TerraQuery>,
     sender: Addr,
     protocol_fee_contract: Option<String>,
     protocol_reward_fee: Option<Decimal>,

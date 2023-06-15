@@ -1,10 +1,10 @@
+use classic_bindings::TerraQuery;
 use cosmwasm_std::{
     entry_point, from_binary, to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Reply, Response,
     StdError, StdResult,
 };
 use cw2::{get_contract_version, set_contract_version};
 use cw20::Cw20ReceiveMsg;
-use eris::terra::TerraQueryWrapper;
 
 use eris::hub::{CallbackMsg, ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg, ReceiveMsg};
 
@@ -15,7 +15,7 @@ use crate::{execute, queries};
 
 #[entry_point]
 pub fn instantiate(
-    deps: DepsMut<TerraQueryWrapper>,
+    deps: DepsMut<TerraQuery>,
     env: Env,
     _info: MessageInfo,
     msg: InstantiateMsg,
@@ -25,7 +25,7 @@ pub fn instantiate(
 
 #[entry_point]
 pub fn execute(
-    deps: DepsMut<TerraQueryWrapper>,
+    deps: DepsMut<TerraQuery>,
     env: Env,
     info: MessageInfo,
     msg: ExecuteMsg,
@@ -83,7 +83,7 @@ pub fn execute(
 }
 
 fn receive(
-    deps: DepsMut<TerraQueryWrapper>,
+    deps: DepsMut<TerraQuery>,
     env: Env,
     info: MessageInfo,
     cw20_msg: Cw20ReceiveMsg,
@@ -114,7 +114,7 @@ fn receive(
 }
 
 fn callback(
-    deps: DepsMut<TerraQueryWrapper>,
+    deps: DepsMut<TerraQuery>,
     env: Env,
     info: MessageInfo,
     callback_msg: CallbackMsg,
@@ -133,7 +133,7 @@ fn callback(
 }
 
 #[entry_point]
-pub fn reply(deps: DepsMut<TerraQueryWrapper>, _env: Env, reply: Reply) -> StdResult<Response> {
+pub fn reply(deps: DepsMut<TerraQuery>, _env: Env, reply: Reply) -> StdResult<Response> {
     match reply.id {
         1 => execute::register_stake_token(deps, unwrap_reply(reply)?),
         id => Err(StdError::generic_err(format!("invalid reply id: {}; must be 1", id))),
@@ -141,7 +141,7 @@ pub fn reply(deps: DepsMut<TerraQueryWrapper>, _env: Env, reply: Reply) -> StdRe
 }
 
 #[entry_point]
-pub fn query(deps: Deps<TerraQueryWrapper>, env: Env, msg: QueryMsg) -> StdResult<Binary> {
+pub fn query(deps: Deps<TerraQuery>, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::Config {} => to_binary(&queries::config(deps)?),
         QueryMsg::State {} => to_binary(&queries::state(deps, env)?),
@@ -177,11 +177,7 @@ pub fn query(deps: Deps<TerraQueryWrapper>, env: Env, msg: QueryMsg) -> StdResul
 }
 
 #[entry_point]
-pub fn migrate(
-    deps: DepsMut<TerraQueryWrapper>,
-    _env: Env,
-    _msg: MigrateMsg,
-) -> StdResult<Response> {
+pub fn migrate(deps: DepsMut<TerraQuery>, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
     let contract_version = get_contract_version(deps.storage)?;
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 

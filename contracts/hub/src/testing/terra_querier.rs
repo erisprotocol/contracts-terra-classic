@@ -1,7 +1,7 @@
 use std::{collections::HashMap, str::FromStr};
 
+use classic_bindings::{TaxCapResponse, TaxRateResponse, TerraQuery};
 use cosmwasm_std::{to_binary, Decimal, QuerierResult, Uint128};
-use eris::terra::{TaxCapResponse, TaxRateResponse, TerraQuery};
 
 use super::helpers::err_unsupported_query;
 

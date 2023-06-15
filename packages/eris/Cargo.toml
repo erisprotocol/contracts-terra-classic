@@ -12,3 +12,4 @@ cosmwasm-std = { version = "1.1", features = ["stargate"] }
 cw20 = "0.13.2"
 schemars = "0.8.1"
 serde = { version = "1.0.103", default-features = false, features = ["derive"] }
+classic-bindings = "0.1.1"
