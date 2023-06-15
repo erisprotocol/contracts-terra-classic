@@ -12,7 +12,7 @@ use cw20_base::msg::InstantiateMsg as Cw20InstantiateMsg;
 use eris::DecimalCheckedOps;
 
 use classic_bindings::TerraQuery;
-use eris::asset::{Asset, PairExecuteMsg};
+use eris::asset::{Asset, AssetInfo, PairExecuteMsg};
 use eris::hub::{
     Batch, CallbackMsg, ConfigResponse, ExecuteMsg, FeeConfig, InstantiateMsg, PendingBatch,
     QueryMsg, ReceiveMsg, StateResponse, SwapConfig, UnbondRequest,
@@ -2058,4 +2058,17 @@ pub fn check_received_coin(amount: u128) -> SubMsg {
         .unwrap(),
         funds: vec![],
     }))
+}
+
+#[test]
+pub fn test_tax() {
+    let asset = Asset {
+        amount: Uint128::new(1000000),
+        info: AssetInfo::NativeToken {
+            denom: "uluna".to_string(),
+        },
+    };
+
+    let deps = mock_dependencies();
+    assert_eq!(asset.compute_tax(&deps.as_ref().querier).unwrap(), Uint128::new(4976))
 }

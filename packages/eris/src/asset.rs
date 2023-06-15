@@ -1,8 +1,8 @@
-use classic_bindings::{TerraQuerier, TerraQuery};
+use classic_bindings::TerraQuery;
 // Code is adjusted based on https://github.com/astroport-fi/astroport-core/blob/release/terra1/packages/astroport/src/asset.rs
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use std::fmt;
+use std::{fmt, str::FromStr};
 
 use cosmwasm_std::{
     to_binary, Addr, Api, BankMsg, Coin, CosmosMsg, Decimal, MessageInfo, QuerierWrapper, StdError,
@@ -59,16 +59,18 @@ impl Asset {
     /// * **self** is the type of the caller object.
     ///
     /// * **querier** is an object of type [`QuerierWrapper`]
-    pub fn compute_tax(&self, querier: &QuerierWrapper<TerraQuery>) -> StdResult<Uint128> {
+    pub fn compute_tax(&self, _querier: &QuerierWrapper<TerraQuery>) -> StdResult<Uint128> {
         let amount = self.amount;
         if let AssetInfo::NativeToken {
-            denom,
+            ..
         } = &self.info
         {
-            let querier = TerraQuerier::new(querier);
-
-            let tax_rate: Decimal = querier.query_tax_rate()?.rate;
-            let tax_cap: Uint128 = querier.query_tax_cap(denom)?.cap;
+            // let querier = TerraQuerier::new(querier);
+            // let tax_rate: Decimal = querier.query_tax_rate()?.rate;
+            // let tax_cap: Uint128 = querier.query_tax_cap(denom)?.cap;
+            // https://terra-classic-lcd.publicnode.com/cosmos/params/v1beta1/params?subspace=treasury&key=TaxPolicy
+            let tax_rate: Decimal = Decimal::from_str("0.005")?;
+            let tax_cap: Uint128 = Uint128::MAX;
             Ok(std::cmp::min(
                 (amount.checked_sub(amount.multiply_ratio(
                     DECIMAL_FRACTION,
