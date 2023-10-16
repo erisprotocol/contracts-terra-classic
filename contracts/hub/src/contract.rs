@@ -173,6 +173,10 @@ pub fn query(deps: Deps<TerraQuery>, env: Env, msg: QueryMsg) -> StdResult<Binar
             limit,
             env,
         )?),
+        QueryMsg::ExchangeRates {
+            start_after,
+            limit,
+        } => to_binary(&queries::query_exchange_rates(deps, env, start_after, limit)?),
     }
 }
 

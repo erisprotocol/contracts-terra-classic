@@ -152,6 +152,13 @@ pub enum QueryMsg {
         start_after: Option<u64>,
         limit: Option<u32>,
     },
+
+    // Query exchange rates
+    ExchangeRates {
+        // start after the provided timestamp in s
+        start_after: Option<u64>,
+        limit: Option<u32>,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -294,4 +301,10 @@ pub struct UnbondRequestsByUserResponseItemDetails {
     pub pending: Option<PendingBatch>,
 }
 
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema)]
+pub struct ExchangeRatesResponse {
+    pub exchange_rates: Vec<(u64, Decimal)>,
+    // APR normalized per DAY
+    pub apr: Option<Decimal>,
+}
 pub type MigrateMsg = Empty;

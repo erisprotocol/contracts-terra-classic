@@ -1,5 +1,5 @@
-use cosmwasm_std::{Addr, Coin, StdError, StdResult, Storage};
-use cw_storage_plus::{Index, IndexList, IndexedMap, Item, MultiIndex};
+use cosmwasm_std::{Addr, Coin, Decimal, StdError, StdResult, Storage};
+use cw_storage_plus::{Index, IndexList, IndexedMap, Item, Map, MultiIndex};
 
 use eris::hub::{Batch, FeeConfig, PendingBatch, SwapConfig, UnbondRequest};
 
@@ -30,6 +30,8 @@ pub(crate) struct State<'a> {
     pub fee_config: Item<'a, FeeConfig>,
     /// Swap Config
     pub swap_config: Item<'a, Vec<SwapConfig>>,
+    // history of the exchange_rate
+    pub exchange_history: Map<'a, u64, Decimal>,
 }
 
 impl Default for State<'static> {
@@ -61,6 +63,7 @@ impl Default for State<'static> {
             unbond_requests: IndexedMap::new("unbond_requests", ubr_indexes),
             fee_config: Item::new("fee_config"),
             swap_config: Item::new("swap_config"),
+            exchange_history: Map::new("exchange_history"),
         }
     }
 }

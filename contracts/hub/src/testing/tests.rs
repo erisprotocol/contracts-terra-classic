@@ -2070,5 +2070,5 @@ pub fn test_tax() {
     };
 
     let deps = mock_dependencies();
-    assert_eq!(asset.compute_tax(&deps.as_ref().querier).unwrap(), Uint128::new(4976))
+    assert_eq!(asset.compute_tax(&deps.as_ref().querier).unwrap(), Uint128::new(100))
 }

@@ -1,11 +1,15 @@
+use std::ops::Div;
+
+use crate::constants::DAY;
 use crate::helpers::{query_cw20_total_supply, query_delegations};
 use crate::state::State;
 use classic_bindings::TerraQuery;
 use cosmwasm_std::{Addr, Decimal, Deps, Env, Order, StdResult, Uint128};
 use cw_storage_plus::Bound;
 use eris::hub::{
-    Batch, ConfigResponse, PendingBatch, StateResponse, UnbondRequestsByBatchResponseItem,
-    UnbondRequestsByUserResponseItem, UnbondRequestsByUserResponseItemDetails,
+    Batch, ConfigResponse, ExchangeRatesResponse, PendingBatch, StateResponse,
+    UnbondRequestsByBatchResponseItem, UnbondRequestsByUserResponseItem,
+    UnbondRequestsByUserResponseItemDetails,
 };
 
 const MAX_LIMIT: u32 = 30;
@@ -223,4 +227,38 @@ pub fn unbond_requests_by_user_details(
             })
         })
         .collect()
+}
+
+pub fn query_exchange_rates(
+    deps: Deps<TerraQuery>,
+    _env: Env,
+    start_after: Option<u64>,
+    limit: Option<u32>,
+) -> StdResult<ExchangeRatesResponse> {
+    let state = State::default();
+    let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
+    let end = start_after.map(Bound::exclusive);
+
+    let exchange_rates = state
+        .exchange_history
+        .range(deps.storage, None, end, Order::Descending)
+        .take(limit)
+        .collect::<StdResult<Vec<(u64, Decimal)>>>()?;
+
+    let apr: Option<Decimal> = if exchange_rates.len() > 1 {
+        let current = exchange_rates[0];
+        let last = exchange_rates[exchange_rates.len() - 1];
+
+        let delta_time_s = current.0 - last.0;
+        let delta_rate = current.1.checked_sub(last.1).unwrap_or_default();
+
+        Some(delta_rate.checked_mul(Decimal::from_ratio(DAY, delta_time_s).div(last.1))?)
+    } else {
+        None
+    };
+
+    Ok(ExchangeRatesResponse {
+        exchange_rates,
+        apr,
+    })
 }

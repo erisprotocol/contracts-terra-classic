@@ -317,10 +317,29 @@ pub fn reinvest(deps: DepsMut<TerraQuery>, env: Env) -> StdResult<Response> {
         msgs.push(mint_msg);
     }
 
+    // update exchange_rate history
+    let utoken_staked: u128 = delegations.iter().map(|d| d.amount).sum();
+    let total_utoken = utoken_staked + uluna_to_bond.u128();
+    let exchange_rate = calc_current_exchange_rate(
+        total_utoken,
+        ustake_supply.checked_add(protocol_fee_mint_amount)?,
+    )?;
+    state.exchange_history.save(deps.storage, env.block.time.seconds(), &exchange_rate)?;
+
     Ok(Response::new()
         .add_messages(msgs)
         .add_event(event)
-        .add_attribute("action", "erishub/reinvest"))
+        .add_attribute("action", "erishub/reinvest")
+        .add_attribute("exchange_rate", exchange_rate.to_string()))
+}
+
+fn calc_current_exchange_rate(total_utoken: u128, ustake_supply: Uint128) -> StdResult<Decimal> {
+    let exchange_rate = if ustake_supply.is_zero() {
+        Decimal::one()
+    } else {
+        Decimal::from_ratio(total_utoken, ustake_supply)
+    };
+    Ok(exchange_rate)
 }
 
 /// This callback is used to take a current snapshot of the balance and add the received balance to the unlocked_coins state after the execution
